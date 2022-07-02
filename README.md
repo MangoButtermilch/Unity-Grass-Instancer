@@ -3,6 +3,7 @@
 ### Made with Unity 2020.3.4f1 and HDRP 10.4.0
 
 ![Alt text](Screenshots/showcase.gif?raw=true "Showcase")
+Video showcase: https://www.youtube.com/watch?v=pJSKUQJqBUs
 
 ## Resources
 - I got started with this project by this great video about GPU instancing: https://www.youtube.com/watch?v=eyaxqo9JV4w
@@ -14,7 +15,7 @@
 - Create an empty transform and attach the script
 - Adjust the settings
 - Add a spriterenderer 
-  - with this simple trick we can get some frustum culling for free and don't have to implement ourselves. Not the best solution but it works alright.
+  - with this simple trick we can get some frustum culling for free and don't have to implement it ourselves. Not the best solution but it works alright.
 - Create a material with the shader (or your own shader)
 
 ## Example settings
