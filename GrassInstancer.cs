@@ -28,10 +28,10 @@ public class GrassInstancer : MonoBehaviour {
     [SerializeField] private bool _randomYAxisRotation = false;
     [SerializeField] private float _maxYRotation = 90;
     [SerializeField] private bool _recieveShadows;
-    [SerializeField] private LayerMask _terrainLayer;
+    [SerializeField] private LayerMask _groundLayer;
     [SerializeField] private Material _material;
     [SerializeField] private MeshLOD[] _meshes;
-    
+
     private void Start() {
         _camera = Camera.main.transform;
         Initialize();
@@ -83,59 +83,38 @@ public class GrassInstancer : MonoBehaviour {
     }
 
     private void OnDrawGizmos() {
-        if(!_drawGizmos) return;
-        _camera = Camera.main.transform;
+        if (!_drawGizmos) return;
+        if (_camera == null) _camera = Camera.main.transform;
         Gizmos.color = Color.red;
         Gizmos.DrawWireCube(transform.position, new Vector3(_range.x * 2, 5, _range.y * 2));
 
     }
 
     private void Initialize() {
-        _batches.Clear();
         int addedMatricies = 0;
-
+        _batches.Clear();
         _batches.Add(new List<Matrix4x4>());
 
         RaycastHit hit;
 
         for (int i = 0; i < _instances; i++) {
             if (addedMatricies < _batchSize && _batches.Count != 0) {
-                Vector3 rayTestPosition = new Vector3(
-                    transform.position.x + Random.Range(-_range.x, _range.x),
-                    transform.position.y + 100,
-                    transform.position.z + Random.Range(-_range.y, _range.y)
-                );
-
+                Vector3 rayTestPosition = GetRandomRayPosition();
                 Ray ray = new Ray(rayTestPosition, Vector3.down);
-                if (!Physics.Raycast(ray, out hit, _terrainLayer)) continue;
+
+                if (!Physics.Raycast(ray, out hit, _groundLayer)) continue;
 
                 if (hit.transform.tag.Equals("IgnoreRaycast")) continue;  //can be replaced with whatever you want
 
-                float dot = Mathf.Abs(Vector3.Dot(hit.normal, ray.direction));
-                if (dot < _steepness) continue;
+                if (IsToSteep(hit.normal, ray.direction)) continue;
 
-                Quaternion tilt = Quaternion.identity;
-                Vector3 eulerIdentiy = Quaternion.ToEulerAngles(Quaternion.identity);
-                eulerIdentiy.x += 90; //can be removed or changed, depends on your mesh
-
-                if (_randomYAxisRotation) eulerIdentiy.y += Random.Range(-_maxYRotation, _maxYRotation);
-
-                if (_rotateToGroundNormal) {
-                    tilt = Quaternion.FromToRotation(Vector3.up, hit.normal) * Quaternion.Euler(eulerIdentiy);
-                } else {
-                    tilt = Quaternion.Euler(eulerIdentiy);
-                }
-
-                Vector3 scale = new Vector3(
-                    Random.Range(_scaleMin.x, _scaleMax.x),
-                    Random.Range(_scaleMin.y, _scaleMax.y),
-                    Random.Range(_scaleMin.z, _scaleMax.z)
-                );
+                Quaternion rotation = GetRotation(hit.normal);
+                Vector3 scale = GetRandomScale();
 
                 Vector3 targetPos = hit.point;
                 targetPos.y += scale.y / 2f; //keep or remove, depends on your mesh
 
-                _batches[_batches.Count - 1].Add(Matrix4x4.TRS(targetPos, tilt, scale));
+                _batches[_batches.Count - 1].Add(Matrix4x4.TRS(targetPos, rotation, scale));
                 addedMatricies++;
                 continue;
             }
@@ -143,5 +122,33 @@ public class GrassInstancer : MonoBehaviour {
             addedMatricies = 0;
 
         }
+    }
+
+    private Vector3 GetRandomRayPosition() {
+        return new Vector3(transform.position.x + Random.Range(-_range.x, _range.x), transform.position.y + 100, transform.position.z + Random.Range(-_range.y, _range.y));
+    }
+
+    private bool IsToSteep(Vector3 normal, Vector3 direction) {
+        float dot = Mathf.Abs(Vector3.Dot(normal, direction));
+        return dot < _steepness;
+    }
+
+    private Vector3 GetRandomScale() {
+        return new Vector3(Random.Range(_scaleMin.x, _scaleMax.x), Random.Range(_scaleMin.y, _scaleMax.y), Random.Range(_scaleMin.z, _scaleMax.z));
+    }
+
+    private Quaternion GetRotation(Vector3 normal) {
+        Quaternion rotation = Quaternion.identity;
+        Vector3 eulerIdentiy = Quaternion.ToEulerAngles(Quaternion.identity);
+        eulerIdentiy.x += 90; //can be removed or changed, depends on your mesh
+
+        if (_randomYAxisRotation) eulerIdentiy.y += Random.Range(-_maxYRotation, _maxYRotation);
+
+        if (_rotateToGroundNormal) {
+            rotation = Quaternion.FromToRotation(Vector3.up, normal) * Quaternion.Euler(eulerIdentiy);
+        } else {
+            rotation = Quaternion.Euler(eulerIdentiy);
+        }
+        return rotation;
     }
 }
