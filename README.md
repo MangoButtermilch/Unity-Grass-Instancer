@@ -10,12 +10,13 @@
   - I'm also using his 3D-Models in my showcase
 
 ## How to use
-- Drag the script and the shader into your scene
+- Drag the script and the shader into your project
 - Create an empty transform and attach the script
 - Adjust the settings
 - Add a spriterenderer 
   - with this simple trick we can get some frustum culling for free and don't have to implement ourselves. Not the best solution but it works alright.
-  
+- Create a material with the shader (or your own shader)
+
 ## Example settings
 ![Alt text](Screenshots/Settings.png?raw=true "Settings")
 
