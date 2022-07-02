@@ -51,3 +51,7 @@ The grass does not always bend in the correct wind direction inside the shader
 ![Alt text](Screenshots/Issue.png?raw=true "Grass bending")
 
 My approach on grass rendering isn't that optimized. You might want to have a look at Acerola's channel, he has also uploaded his code to Github: https://www.youtube.com/c/Acerola_t
+
+## Material config
+Be sure to check GPU instancing on your material or it can't be instanced
+![Alt text](Screenshots/Material.png?raw=true "Material")
