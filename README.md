@@ -30,8 +30,8 @@ Video showcase: https://www.youtube.com/watch?v=pJSKUQJqBUs
 - Scale min/max -> You can scale your meshes randomly between a min and max value
 - Steepness -> Limit the steepness your meshes can be spawned on
 - Rotate to ground normal -> Rotates the mesh towards the ground 
-- Random Y axis rotation -> Rotates the mesh randomly between negative and positive rotation
-- Max Y rotation -> Max random rotation
+- Random Y axis rotation -> Rotates the mesh randomly on the Y axis between a negative and positive value
+- Max Y rotation -> Max random Y rotation
 - Recieve shadows -> Depends on your material
 - Terrain/Ground layer -> You can define layers where your meshes can be spawned
 - Material -> The material you want your meshes to have
