@@ -22,7 +22,6 @@
 
 ## Behind the scenes
 - The script will create a box where it shoots down raycasts to detect possible mesh positions
-
 ![Alt text](Screenshots/Volume_box.png?raw=true "Volume box")
 
 - I got the best results with overlapping volumes
