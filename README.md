@@ -3,6 +3,7 @@
 ### Made with Unity 2020.3.4f1 and HDRP 10.4.0
 
 ![Alt text](Screenshots/showcase.gif?raw=true "Showcase")
+
 Video showcase: https://www.youtube.com/watch?v=pJSKUQJqBUs
 
 ## Resources
