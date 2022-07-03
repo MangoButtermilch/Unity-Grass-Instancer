@@ -54,4 +54,19 @@ My approach on grass rendering isn't that optimized. You might want to have a lo
 
 ## Material config
 Be sure to check GPU instancing on your material or it can't be instanced
+
 ![Alt text](Screenshots/Material.png?raw=true "Material")
+
+## Shader info
+For those of you who don't want to use shadergraph, here are some screenshots of how the shader works.
+With this you can basically rebuild it with plain code.
+
+Fragment shader
+![Alt text](Screenshots/Fragment_shader.png?raw=true "Fragment shader")
+
+Vertex shader part 1
+![Alt text](Screenshots/Vertex_shader_1.png?raw=true "Vertex shader 1")
+
+Vertex shader part 2
+![Alt text](Screenshots/Vertex_shader_2.png?raw=true "Vertex shader 2")
+
