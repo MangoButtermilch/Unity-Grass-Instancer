@@ -56,7 +56,7 @@ public class GrassInstancer : MonoBehaviour {
             _mesh = null;
             return;
         }
-        float dist = Mathf.Abs(Vector3.Distance(_camera.position, transform.position));
+        float dist = Vector3.Distance(_camera.position, transform.position);
         float ratio = dist > 1f ? 1f / Mathf.Clamp(dist, 0.1f, Mathf.Infinity) : dist;
         for (int i = _meshes.Length - 1; i >= 0; i--) {
             if (ratio <= _meshes[i].lod) {
@@ -84,7 +84,6 @@ public class GrassInstancer : MonoBehaviour {
 
     private void OnDrawGizmos() {
         if (!_drawGizmos) return;
-        if (_camera == null) _camera = Camera.main.transform;
         Gizmos.color = Color.red;
         Gizmos.DrawWireCube(transform.position, new Vector3(_range.x * 2, 5, _range.y * 2));
 
@@ -138,17 +137,14 @@ public class GrassInstancer : MonoBehaviour {
     }
 
     private Quaternion GetRotation(Vector3 normal) {
-        Quaternion rotation = Quaternion.identity;
-        Vector3 eulerIdentiy = Quaternion.ToEulerAngles(Quaternion.identity);
+       Vector3 eulerIdentiy = Quaternion.ToEulerAngles(Quaternion.identity);
         eulerIdentiy.x += 90; //can be removed or changed, depends on your mesh
 
         if (_randomYAxisRotation) eulerIdentiy.y += Random.Range(-_maxYRotation, _maxYRotation);
 
         if (_rotateToGroundNormal) {
-            rotation = Quaternion.FromToRotation(Vector3.up, normal) * Quaternion.Euler(eulerIdentiy);
-        } else {
-            rotation = Quaternion.Euler(eulerIdentiy);
+            return Quaternion.FromToRotation(Vector3.up, normal) * Quaternion.Euler(eulerIdentiy);
         }
-        return rotation;
+        return Quaternion.Euler(eulerIdentiy);
     }
 }
