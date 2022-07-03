@@ -23,18 +23,18 @@ Video showcase: https://www.youtube.com/watch?v=pJSKUQJqBUs
 ![Alt text](Screenshots/Settings.png?raw=true "Settings")
 
 ## Properties explained
-- Draw Gizmos -> Will draw a bounding box inside OnDrawGizmos() for debugging
-- Batch Size -> The size you want your batches to be. Unity's max is 1023
-- Instances -> The amount of grass blades or other meshes
-- Range -> Range of the bounding box where rays for mesh positions will be tested
-- Scale min/max -> You can scale your meshes randomly between a min and max value
-- Steepness -> Limit the steepness your meshes can be spawned on
-- Rotate to ground normal -> Rotates the mesh towards the ground 
-- Random Y axis rotation -> Rotates the mesh randomly on the Y axis between a negative and positive value
-- Max Y rotation -> Max random Y rotation
-- Recieve shadows -> Depends on your material
-- Terrain/Ground layer -> You can define layers where your meshes can be spawned
-- Material -> The material you want your meshes to have
+- Draw Gizmos - Will draw a bounding box inside OnDrawGizmos() for debugging
+- Batch Size - The size you want your batches to be. Unity's max is 1023
+- Instances - The amount of grass blades or other meshes
+- Range - Range of the bounding box where rays for mesh positions will be tested
+- Scale min/max - You can scale your meshes randomly between a min and max value
+- Steepness - Limit the steepness your meshes can be spawned on
+- Rotate to ground normal - Rotates the mesh towards the ground 
+- Random Y axis rotation - Rotates the mesh randomly on the Y axis between a negative and positive value
+- Max Y rotation - Max random Y rotation
+- Recieve shadows - Depends on your material
+- Terrain/Ground layer - You can define layers where your meshes can be spawned
+- Material - The material you want your meshes to have
 - Meshes array
   - Set the mesh and shadow option for each LOD individually
 
