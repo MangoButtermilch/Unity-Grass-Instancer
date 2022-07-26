@@ -122,5 +122,5 @@ This approach on grass rendering needs some frustum culling still. For this, you
 ![Alt text](Screenshots/Indirect_Material.png?raw=true "Material")
 
 ## Shader info
-I've made a custom shader which is basically a recreation of shadergraph.
+I've made a custom shader which is basically a recreation of the shadergraph.
 You can use your shadergraph if you are using Unity 2021.2 or higher, otherwise you won't have access to the InstanceID.
