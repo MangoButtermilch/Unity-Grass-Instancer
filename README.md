@@ -107,7 +107,8 @@ Vertex shader part 2
   - Set the mesh and shadow option for each LOD individually
 
 ## Behind the scenes
-The script will also create a box where it shoots down raycasts to detect possible mesh positions
+The script will also create a box where it shoots down raycasts to detect possible mesh positions.
+
 For this approach I recommend using one big volume
 ![Alt text](Screenshots/Indirect_bhs.png?raw=true "Indirect behind the scenes")
 
