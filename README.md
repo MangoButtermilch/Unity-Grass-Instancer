@@ -1,5 +1,5 @@
 # Unity Grass Instancer
-## Contains C# scripts and a shaders for GPU instanced grass (or any other mesh)
+## Contains C# scripts and shaders for GPU instanced grass (or any other mesh)
 ### Made with Unity 2020.3.4f1 and HDRP 10.4.0
 
 ![Alt text](Screenshots/showcase.gif?raw=true "Showcase")
