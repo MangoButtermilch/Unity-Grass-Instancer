@@ -1,16 +1,23 @@
 # Unity Grass Instancer
-## Contains a C# script and a shader for GPU instanced grass (or any other mesh)
+## Contains C# scripts and a shaders for GPU instanced grass (or any other mesh)
 ### Made with Unity 2020.3.4f1 and HDRP 10.4.0
 
 ![Alt text](Screenshots/showcase.gif?raw=true "Showcase")
 
 Video showcase: https://www.youtube.com/watch?v=pJSKUQJqBUs
 
+## Project contains 2 approaches
+- GrassInstancer.cs is using Unitys DrawMeshInstanced function which needs an array of Matrix4x4 to render the grass with a maximum batch size of 1023
+  - This one is slower but has some dummy frustum culling
+- GrassInstancerIndirect.cs is using Unitys DrawMeshInstancedIndirect function which uses compute buffers and has basically a unlimited batch size 
+  - This one is way faster (about 20x times with my setup) but has no frustum culling (yet)
+
 ## Resources
 - I got started with this project by this great video about GPU instancing: https://www.youtube.com/watch?v=eyaxqo9JV4w
 - I found a lot of information about grass rendering on Acerola's youtube channel: https://www.youtube.com/c/Acerola_t
   - I'm also using his 3D-Models in my showcase
 
+# Information for GrassInstancer.cs
 ## How to use
 - Drag the script and the shader into your project
 - Create an empty transform and attach the script
@@ -70,3 +77,49 @@ Vertex shader part 1
 Vertex shader part 2
 ![Alt text](Screenshots/Vertex_shader_2.png?raw=true "Vertex shader 2")
 
+
+ 
+# Information for GrassInstancerIndirect.cs
+## How to use
+- Drag the script and the GrassIndirect.shader file into your project
+- Create an empty transform and attach the script
+- Adjust the settings
+- Create a material with the shader (or your own shader)
+
+## Example settings
+![Alt text](Screenshots/Indirect_settings.png?raw=true "Indirect settings")
+
+## Properties explained
+- Draw Gizmos - Will draw a bounding box inside OnDrawGizmos() for debugging
+- Instances - The amount of grass blades or other meshes
+- True Instance Count - Displays the amount of instances that were actually instanced
+- Range - Range of the bounding box where rays for mesh positions will be tested
+- Scale min/max - You can scale your meshes randomly between a min and max value
+- Steepness - Limit the steepness your meshes can be spawned on
+- Rotate to ground normal - Rotates the mesh towards the ground 
+- Random Y axis rotation - Rotates the mesh randomly on the Y axis between a negative and positive value
+- Max Y rotation - Max random Y rotation
+- Recieve shadows - Depends on your material
+- Terrain/Ground layer - You can define layers where your meshes can be spawned
+- Material - The material you want your meshes to have
+- Main Light - The main light transform of your scene
+- Meshes array
+  - Set the mesh and shadow option for each LOD individually
+
+## Behind the scenes
+The script will also create a box where it shoots down raycasts to detect possible mesh positions
+For this approach I recommend using one big volume
+![Alt text](Screenshots/Indirect_bhs.png?raw=true "Indirect behind the scenes")
+
+Approximately 2 million grass blades at 60 FPS
+![Alt text](Screenshots/Indirect_rendering.png?raw=true "Volumes overlapping")
+
+
+This approach on grass rendering needs some frustum culling still. For this, you might want to have a look at Acerola's channel, he has also uploaded his code to Github: https://www.youtube.com/c/Acerola_t
+
+## Material config
+![Alt text](Screenshots/Indirect_Material.png?raw=true "Material")
+
+## Shader info
+I've made a custom shader which is basically a recreation of shadergraph.
+You can use your shadergraph if you are using Unity 2021.2 or higher, otherwise you won't have access to the InstanceID.
