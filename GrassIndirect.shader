@@ -10,6 +10,7 @@ Shader "Unlit/GrassBladeIndirect"
         _Scale ("Scale", Range(0.0, 2.0)) = 0.0
         _MeshDeformationLimit ("Mesh Deformation Limit", Range(0.0, 5.0)) = 0.0
         _WindNoiseScale ("Wind Noise Scale", float) = 0.0
+        _WindStrength ("Wind Strength", float) = 1.0
         _WindSpeed ("Wind Speed", Vector) = (0, 0, 0, 0)
     }
     SubShader
@@ -25,6 +26,7 @@ Shader "Unlit/GrassBladeIndirect"
             #pragma fragment frag
             // make fog work
             #pragma multi_compile_fog
+            #pragma multi_compile_instancing
 			#pragma target 4.5
 
             #include "UnityCG.cginc"
@@ -98,6 +100,7 @@ Shader "Unlit/GrassBladeIndirect"
             float4 _LightDir;
             float _MeshDeformationLimit;
             float4 _WindSpeed;
+            float _WindStrength;
             float _WindNoiseScale;
 
             v2f vert (appdata v, uint instanceID : SV_InstanceID)
@@ -107,7 +110,6 @@ Shader "Unlit/GrassBladeIndirect"
 
                 //applying transformation matrix
                 float3 positionWorldSpace = mul(trsBuffer[instanceID], float4(v.vertex.xyz, 1));
-                o.vertex = mul(UNITY_MATRIX_VP, float4(positionWorldSpace, 1));
 
                 //move world UVs by time
                 float4 worldPos = float4(positionWorldSpace, 1);
@@ -124,7 +126,8 @@ Shader "Unlit/GrassBladeIndirect"
                 float distortion = smoothDeformation * noise;
 
                 //apply distortion
-                o.vertex.x += distortion;
+                positionWorldSpace.x += distortion * _WindStrength;
+                o.vertex = mul(UNITY_MATRIX_VP, float4(positionWorldSpace, 1));
 
                 UNITY_TRANSFER_FOG(o,o.vertex);
                 return o;
