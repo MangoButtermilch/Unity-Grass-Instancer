@@ -54,9 +54,6 @@ I got the best results with overlapping volumes
 ![Alt text](Screenshots/Rendering.png?raw=true "Volumes overlapping")
 
 ## Known issues
-The grass does not always bend in the correct wind direction inside the shader
-![Alt text](Screenshots/Issue.png?raw=true "Grass bending")
-
 My approach on grass rendering isn't that optimized. You might want to have a look at Acerola's channel, he has also uploaded his code to Github: https://www.youtube.com/c/Acerola_t
 
 ## Material config
@@ -122,5 +119,14 @@ This approach on grass rendering needs some frustum culling still. For this, you
 ![Alt text](Screenshots/Indirect_Material.png?raw=true "Material")
 
 ## Shader info
-I've made a custom shader which is basically a recreation of the shadergraph.
-You can use your shadergraph if you are using Unity 2021.2 or higher, otherwise you won't have access to the InstanceID.
+
+### Grass.shadergraph
+You can use the shadergraph if you are using Unity 2021.2 or higher, otherwise you won't have access to the InstanceID. That's also why
+
+### GrassIndirect.shader
+Custom URP unlit shader without shadows which is basically a recreation of the shadergraph.
+
+### GrassInstancerIndirect_Lighting.shader
+Custom URP unlit shader with shadow casting and recieving.
+Only tested with Unity 2021.3.6f1 and URP 12.7.1.
+Fog not included.
