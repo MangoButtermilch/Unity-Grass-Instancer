@@ -8,7 +8,8 @@ Shader "Unlit/GrassBladeIndirect"
         _AOColor ("AO Color", Color) = (1, 0, 1)
         _TipColor ("Tip Color", Color) = (0, 0, 1)
         _Scale ("Scale", Range(0.0, 2.0)) = 0.0
-        _MeshDeformationLimit ("Mesh Deformation Limit", Range(0.0, 5.0)) = 0.0
+        _MeshDeformationLimitLow ("Mesh Deformation low limit", Range(0.0, 5.0)) = 0.08
+        _MeshDeformationLimitTop ("Mesh Deformation top limit", Range(0.0, 5.0)) = 2.0
         _WindNoiseScale ("Wind Noise Scale", float) = 0.0
         _WindStrength ("Wind Strength", float) = 1.0
         _WindSpeed ("Wind Speed", Vector) = (0, 0, 0, 0)
@@ -98,7 +99,8 @@ Shader "Unlit/GrassBladeIndirect"
             float4 _PrimaryCol, _SecondaryCol, _AOColor, _TipColor;
             float _Scale;
             float4 _LightDir;
-            float _MeshDeformationLimit;
+            float _MeshDeformationLimitLow;
+            float _MeshDeformationLimitTop;
             float4 _WindSpeed;
             float _WindStrength;
             float _WindNoiseScale;
@@ -118,11 +120,10 @@ Shader "Unlit/GrassBladeIndirect"
                 //creating noise from world UVs
                 float noise = 0;
                 Unity_SimpleNoise_float(worldUV, _WindNoiseScale, noise);
-                noise = pow(noise, 2);
 
                 //to keep bottom part of mesh at its position
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
-                float smoothDeformation = smoothstep(0, _MeshDeformationLimit, o.uv.y);
+                float smoothDeformation = smoothstep(_MeshDeformationLimitLow, _MeshDeformationLimitTop, o.uv.y);
                 float distortion = smoothDeformation * noise;
 
                 //apply distortion
