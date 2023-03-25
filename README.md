@@ -53,26 +53,10 @@ I got the best results with overlapping volumes
 ![Alt text](Screenshots/Voumes_overlap.png?raw=true "Volumes overlapping")
 ![Alt text](Screenshots/Rendering.png?raw=true "Volumes overlapping")
 
-## Known issues
-My approach on grass rendering isn't that optimized. You might want to have a look at Acerola's channel, he has also uploaded his code to Github: https://www.youtube.com/c/Acerola_t
-
 ## Material config
 Be sure to check GPU instancing on your material or it can't be instanced
 
 ![Alt text](Screenshots/Material.png?raw=true "Material")
-
-## Shader info
-For those of you who don't want to use shadergraph, here are some screenshots of how the shader works.
-With this you can basically rebuild it with plain code.
-
-Fragment shader
-![Alt text](Screenshots/Fragment_shader.png?raw=true "Fragment shader")
-
-Vertex shader part 1
-![Alt text](Screenshots/Vertex_shader_1.png?raw=true "Vertex shader 1")
-
-Vertex shader part 2
-![Alt text](Screenshots/Vertex_shader_2.png?raw=true "Vertex shader 2")
 
 
  
@@ -100,8 +84,7 @@ Vertex shader part 2
 - Terrain/Ground layer - You can define layers where your meshes can be spawned
 - Material - The material you want your meshes to have
 - Main Light - The main light transform of your scene
-- Meshes array
-  - Set the mesh and shadow option for each LOD individually
+- Mesh - The mesh you want to render
 
 ## Behind the scenes
 The script will also create a box where it shoots down raycasts to detect possible mesh positions.
@@ -113,15 +96,10 @@ Approximately 2 million grass blades at 60 FPS
 ![Alt text](Screenshots/Indirect_rendering.png?raw=true "Volumes overlapping")
 
 
-This approach on grass rendering needs some frustum culling still. For this, you might want to have a look at Acerola's channel, he has also uploaded his code to Github: https://www.youtube.com/c/Acerola_t
-
 ## Material config
 ![Alt text](Screenshots/Indirect_Material.png?raw=true "Material")
 
 ## Shader info
-
-### Grass.shadergraph
-You can use the shadergraph if you are using Unity 2021.2 or higher, otherwise you won't have access to the InstanceID. That's also why
 
 ### GrassIndirect.shader
 Custom URP unlit shader without shadows which is basically a recreation of the shadergraph.
@@ -130,3 +108,20 @@ Custom URP unlit shader without shadows which is basically a recreation of the s
 Custom URP unlit shader with shadow casting and recieving.
 Only tested with Unity 2021.3.6f1 and URP 12.7.1.
 Fog not included.
+
+### Grass.shadergraph
+You can use the shadergraph if you are using Unity 2021.2 or higher, otherwise you won't have access to the InstanceID.
+
+Here's the graph itself:
+
+Fragment shader
+![Alt text](Screenshots/Fragment_shader.png?raw=true "Fragment shader")
+
+Vertex shader part 1
+![Alt text](Screenshots/Vertex_shader_1.png?raw=true "Vertex shader 1")
+
+Vertex shader part 2
+![Alt text](Screenshots/Vertex_shader_2.png?raw=true "Vertex shader 2")
+
+## Known issues
+My approach on grass rendering isn't that optimized. You might want to have a look at Acerola's channel, he has also uploaded his code to Github: https://www.youtube.com/c/Acerola_t
