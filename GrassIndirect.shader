@@ -120,6 +120,7 @@ Shader "Unlit/GrassBladeIndirect"
                 //creating noise from world UVs
                 float noise = 0;
                 Unity_SimpleNoise_float(worldUV, _WindNoiseScale, noise);
+                noise -= .5;
 
                 //to keep bottom part of mesh at its position
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
@@ -127,7 +128,7 @@ Shader "Unlit/GrassBladeIndirect"
                 float distortion = smoothDeformation * noise;
 
                 //apply distortion
-                positionWorldSpace.x += distortion * _WindStrength;
+                positionWorldSpace.xz += distortion * _WindStrength * normalize(_WindSpeed);
                 o.vertex = mul(UNITY_MATRIX_VP, float4(positionWorldSpace, 1));
 
                 UNITY_TRANSFER_FOG(o,o.vertex);
