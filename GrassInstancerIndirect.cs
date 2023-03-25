@@ -22,8 +22,7 @@ public class GrassInstancerIndirect : MonoBehaviour {
     [SerializeField] private Material _material;
     [SerializeField] private bool _recieveShadows;
     [SerializeField] private Transform _mainLight;
-    [SerializeField] private MeshLOD[] _meshes;
-    private Mesh _mesh;
+    [SerializeField] private Mesh _mesh;
     private Transform _camera;
     private float distToCamera;
     private bool _castShadows;
@@ -38,8 +37,6 @@ public class GrassInstancerIndirect : MonoBehaviour {
     }
 
     private void Update() {
-        GetDistToCamera();
-        GetMeshFromCameraDistance();
         UpdateLight();
         RenderInstances();
     }
@@ -58,26 +55,6 @@ public class GrassInstancerIndirect : MonoBehaviour {
         if (_camera == null) _camera = Camera.main.transform;
         Gizmos.color = Color.red;
         Gizmos.DrawWireCube(transform.position, new Vector3(_range.x * 2, 5, _range.y * 2));
-    }
-
-    private void GetDistToCamera() {
-        distToCamera = Vector3.Distance(_camera.position, transform.position); ;
-    }
-
-    private void GetMeshFromCameraDistance() {
-        float clampedDist = Mathf.Clamp(distToCamera, 0.1f, Mathf.Infinity);
-        float meshDistRatio = distToCamera > 1f ? 1f / clampedDist : distToCamera;
-
-        for (int i = _meshes.Length - 1; i >= 0; i--) {
-            if (meshDistRatio <= _meshes[i].lod) {
-                _mesh = _meshes[i].mesh;
-                _castShadows = _meshes[i].shadows;
-                break;
-            }
-        }
-        if (_mesh == null) {
-            _mesh = _meshes[_meshes.Length - 1].mesh;
-        }
     }
 
     private void UpdateLight() {
@@ -120,12 +97,11 @@ public class GrassInstancerIndirect : MonoBehaviour {
             _trueInstanceCount++;
         }
 
-        Mesh mesh = _meshes[0].mesh;
         uint[] args = new uint[5];
-        args[0] = (uint)mesh.GetIndexCount(0);
+        args[0] = (uint)_mesh.GetIndexCount(0);
         args[1] = (uint)_trueInstanceCount;
-        args[2] = (uint)mesh.GetIndexStart(0);
-        args[3] = (uint)mesh.GetBaseVertex(0);
+        args[2] = (uint)_mesh.GetIndexStart(0);
+        args[3] = (uint)_mesh.GetBaseVertex(0);
         args[4] = 0;
 
         _argsBuffer = new ComputeBuffer(1, 5 * sizeof(uint), ComputeBufferType.IndirectArguments);
