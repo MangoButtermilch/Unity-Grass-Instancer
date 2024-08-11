@@ -1,6 +1,9 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Unity.Collections;
+using Unity.Jobs;
+using System;
 
 public class GrassInstancerIndirect : MonoBehaviour
 {
@@ -28,6 +31,9 @@ public class GrassInstancerIndirect : MonoBehaviour
     private ComputeBuffer _argsBuffer;
     private ComputeBuffer _trsBuffer;
     private List<Matrix4x4> _trsList = new List<Matrix4x4>();
+
+    private Vector3 _instancerPos;
+    private Bounds _renderBounds;
 
     private void Start()
     {
@@ -57,14 +63,14 @@ public class GrassInstancerIndirect : MonoBehaviour
     private void RenderInstances()
     {
         if (_mesh == null) return;
-        
+
         _material.SetFloat("_RecieveShadow", _recieveShadows ? 1f : 0f);
 
         Graphics.DrawMeshInstancedIndirect(
             _mesh,
             0,
             _material,
-            new Bounds(transform.position, Vector3.one * _range.x),
+            _renderBounds,
             _argsBuffer,
             0,
             null,
@@ -74,15 +80,30 @@ public class GrassInstancerIndirect : MonoBehaviour
 
     private void Initialize()
     {
-        RaycastHit hit;
-        Ray ray = new Ray(Vector3.zero, Vector3.down);
+        _instancerPos = transform.position;
+        _renderBounds = new Bounds(_instancerPos, Vector3.one * _range.x);
+
+        NativeArray<RaycastHit> results = new NativeArray<RaycastHit>(_instances, Allocator.TempJob);
+        NativeArray<RaycastCommand> commands = new NativeArray<RaycastCommand>(_instances, Allocator.TempJob);
+
+        Vector3 dir = Vector3.down;
+        QueryParameters parameters = new QueryParameters(_groundLayer, false);
 
         for (int i = 0; i < _instances; i++)
         {
-            Vector3 rayTestPosition = GetRandomRayPosition();
-            ray.origin = rayTestPosition;
+            commands[i] = new RaycastCommand(GetRandomRayPosition(), dir, parameters);
+        }
 
-            if (!HitSomething(ray, out hit) || IsToSteep(hit.normal, ray.direction)) continue;
+        JobHandle handle = RaycastCommand.ScheduleBatch(commands, results, 16, default);
+        handle.Complete();
+
+
+        int amount = results.Length;
+        for (int i = 0; i < amount; i++)
+        {
+            RaycastHit hit = results[i];
+
+            if (IsToSteep(hit.normal, dir)) continue;
 
             Quaternion rotation = GetRotationFromNormal(hit.normal);
             Vector3 scale = GetRandomScale();
@@ -91,7 +112,11 @@ public class GrassInstancerIndirect : MonoBehaviour
             targetPos.y += scale.y / 2f; //keep or remove, depends on your mesh scaling
             _trsList.Add(Matrix4x4.TRS(targetPos, rotation, scale));
             _trueInstanceCount++;
+
         }
+
+        results.Dispose();
+        commands.Dispose();
 
         uint[] args = new uint[5];
         args[0] = (uint)_mesh.GetIndexCount(0);
@@ -111,14 +136,12 @@ public class GrassInstancerIndirect : MonoBehaviour
 
     }
 
-    private bool HitSomething(Ray ray, out RaycastHit hit)
-    {
-        return Physics.Raycast(ray, out hit, Mathf.Infinity, _groundLayer);
-    }
-
     private Vector3 GetRandomRayPosition()
     {
-        return new Vector3(transform.position.x + Random.Range(-_range.x, _range.x), transform.position.y + 100, transform.position.z + Random.Range(-_range.y, _range.y));
+        return new Vector3(
+            _instancerPos.x + UnityEngine.Random.Range(-_range.x, _range.x),
+            _instancerPos.y + 100,
+            _instancerPos.z + UnityEngine.Random.Range(-_range.y, _range.y));
     }
 
     private bool IsToSteep(Vector3 normal, Vector3 direction)
@@ -129,7 +152,10 @@ public class GrassInstancerIndirect : MonoBehaviour
 
     private Vector3 GetRandomScale()
     {
-        return new Vector3(Random.Range(_scaleMin.x, _scaleMax.x), Random.Range(_scaleMin.y, _scaleMax.y), Random.Range(_scaleMin.z, _scaleMax.z));
+        return new Vector3(
+            UnityEngine.Random.Range(_scaleMin.x, _scaleMax.x),
+            UnityEngine.Random.Range(_scaleMin.y, _scaleMax.y),
+            UnityEngine.Random.Range(_scaleMin.z, _scaleMax.z));
     }
 
     private Quaternion GetRotationFromNormal(Vector3 normal)
@@ -137,7 +163,7 @@ public class GrassInstancerIndirect : MonoBehaviour
         Vector3 eulerIdentiy = Quaternion.ToEulerAngles(Quaternion.identity);
         eulerIdentiy.x += 90; //can be removed or changed, depends on your mesh orientation
 
-        if (_randomYAxisRotation) eulerIdentiy.y += Random.Range(-_maxYRotation, _maxYRotation);
+        if (_randomYAxisRotation) eulerIdentiy.y += UnityEngine.Random.Range(-_maxYRotation, _maxYRotation);
 
         if (_rotateToGroundNormal)
         {
