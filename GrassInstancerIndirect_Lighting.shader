@@ -2,7 +2,6 @@ Shader "Unlit/GrassBladeIndirect"
 {
     Properties
     {
-        _MainTex ("Main Tex", 2D) = "white" {}
         _PrimaryCol ("Primary Color", Color) = (1, 1, 1)
         _SecondaryCol ("Secondary Color", Color) = (1, 0, 1)
         _AOColor ("AO Color", Color) = (1, 0, 1)
@@ -15,7 +14,7 @@ Shader "Unlit/GrassBladeIndirect"
         _WindSpeed ("Wind Speed", Vector) = (-4.92, 3, 0, 0)
         _MinBrightness ("Min brightness", float) = 0.5
         _ShadowBrightness ("Shadow brightness", float) = 0.3
-        _ShadowColor ("Shadow color",  Color) = (1, 1, 1)
+        [Toggle] _RecieveShadow("Recieve shadow", float) = 0
     }
     SubShader
     {
@@ -78,8 +77,6 @@ Shader "Unlit/GrassBladeIndirect"
             };
 
             StructuredBuffer<float4x4> trsBuffer;
-            sampler2D _MainTex;
-            float4 _MainTex_ST;
             float4 _PrimaryCol, _SecondaryCol, _AOColor, _TipColor;
             float _Scale;
             float _MeshDeformationLimitLow;
@@ -89,7 +86,6 @@ Shader "Unlit/GrassBladeIndirect"
             float _WindNoiseScale;
             float _MinBrightness;
             float _ShadowBrightness;
-            float4 _ShadowColor;
             float _RecieveShadow;
 
             VertexOutput vert (VertexInput v, uint instanceID : SV_InstanceID)
@@ -109,7 +105,7 @@ Shader "Unlit/GrassBladeIndirect"
                 noise -= .5;
 
                 //to keep bottom part of mesh at its position
-                o.uv = TRANSFORM_TEX(v.uv, _MainTex);
+                o.uv = v.uv;
                 float smoothDeformation = smoothstep(_MeshDeformationLimitLow, _MeshDeformationLimitTop, o.uv.y);
                 float distortion = smoothDeformation * noise;
 
@@ -141,7 +137,7 @@ Shader "Unlit/GrassBladeIndirect"
                 if (_RecieveShadow > 0) {
                     float distanceAtten = mainLight.distanceAttenuation;
                     float shadowAtten = mainLight.shadowAttenuation + _ShadowBrightness;
-                    float4 lightColor = float4(mainLight.color, 1) * (distanceAtten * shadowAtten) * _ShadowColor;
+                    float4 lightColor = float4(mainLight.color, 1) * (distanceAtten * shadowAtten);
 
                     lightColor = saturate(lightColor);
                     return grassColor * lightColor * lightStrength;
@@ -152,6 +148,7 @@ Shader "Unlit/GrassBladeIndirect"
             ENDHLSL
         }
 
+   
         Pass {
             Name "ShadowCaster"
             Tags { "LightMode" = "ShadowCaster" }
@@ -179,13 +176,10 @@ Shader "Unlit/GrassBladeIndirect"
 
             struct VertexOutput
             {
-                float2 uv : TEXCOORD0;
                 float4 vertex : SV_POSITION;
             };
 
             StructuredBuffer<float4x4> trsBuffer;
-            sampler2D _MainTex;
-            float4 _MainTex_ST;
             float _MeshDeformationLimit;
             float4 _WindSpeed;
             float _WindStrength;
@@ -211,8 +205,7 @@ Shader "Unlit/GrassBladeIndirect"
                 noise -= .5;
                 
                 //to keep bottom part of mesh at its position
-                o.uv = TRANSFORM_TEX(v.uv, _MainTex);
-                float smoothDeformation = smoothstep(_MeshDeformationLimitLow, _MeshDeformationLimitTop, o.uv.y);
+                float smoothDeformation = smoothstep(_MeshDeformationLimitLow, _MeshDeformationLimitTop, v.uv.y);
                 float distortion = smoothDeformation * noise;
 
                 //apply distortion
@@ -228,4 +221,6 @@ Shader "Unlit/GrassBladeIndirect"
            ENDHLSL
        }
     }
+
+    Fallback "VertexLix"
 }

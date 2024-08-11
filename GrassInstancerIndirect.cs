@@ -2,11 +2,12 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class GrassInstancerIndirect : MonoBehaviour {
+public class GrassInstancerIndirect : MonoBehaviour
+{
 
     [Header("Debugging")]
     [SerializeField] private bool _drawGizmos;
-    [Header("Batches")]
+    [Header("Instancing")]
     [SerializeField] private int _instances;
     [SerializeField] private int _trueInstanceCount;
     [Header("Grass settings")]
@@ -20,50 +21,45 @@ public class GrassInstancerIndirect : MonoBehaviour {
     [SerializeField] private LayerMask _groundLayer;
     [Header("Rendering")]
     [SerializeField] private Material _material;
-    [SerializeField] private bool _recieveShadows;
-    [SerializeField] private Transform _mainLight;
     [SerializeField] private Mesh _mesh;
-    private Transform _camera;
-    private float distToCamera;
-    private bool _castShadows;
+    [SerializeField] private bool _castShadows;
+    [SerializeField] private bool _recieveShadows;
 
     private ComputeBuffer _argsBuffer;
     private ComputeBuffer _trsBuffer;
     private List<Matrix4x4> _trsList = new List<Matrix4x4>();
 
-    private void Start() {
+    private void Start()
+    {
         Initialize();
-        Invoke("UpdateLight", 1f);
     }
 
-    private void Update() {
-        UpdateLight();
+    private void Update()
+    {
         RenderInstances();
     }
 
-    private void OnDestroy() {
-        if (_argsBuffer != null) {
-            _argsBuffer.Release();
-        }
-        if (_trsBuffer != null) {
-            _trsBuffer.Release();
-        }
+    private void OnDestroy()
+    {
+        _argsBuffer?.Release();
+        _argsBuffer?.Dispose();
+        _trsBuffer?.Release();
+        _trsBuffer?.Dispose();
     }
 
-    private void OnDrawGizmos() {
+    private void OnDrawGizmos()
+    {
         if (!_drawGizmos) return;
-        if (_camera == null) _camera = Camera.main.transform;
         Gizmos.color = Color.red;
         Gizmos.DrawWireCube(transform.position, new Vector3(_range.x * 2, 5, _range.y * 2));
     }
 
-    private void UpdateLight() {
-        Vector3 lightDir = -_mainLight.forward;
-        _material.SetVector("_LightDir", new Vector4(lightDir.x, lightDir.y, lightDir.z, 1));
-    }
-
-    private void RenderInstances() {
+    private void RenderInstances()
+    {
         if (_mesh == null) return;
+        
+        _material.SetFloat("_RecieveShadow", _recieveShadows ? 1f : 0f);
+
         Graphics.DrawMeshInstancedIndirect(
             _mesh,
             0,
@@ -76,23 +72,23 @@ public class GrassInstancerIndirect : MonoBehaviour {
         );
     }
 
-    private void Initialize() {
-        _camera = Camera.main.transform;
+    private void Initialize()
+    {
         RaycastHit hit;
+        Ray ray = new Ray(Vector3.zero, Vector3.down);
 
-        for (int i = 0; i < _instances; i++) {
+        for (int i = 0; i < _instances; i++)
+        {
             Vector3 rayTestPosition = GetRandomRayPosition();
-            Ray ray = new Ray(rayTestPosition, Vector3.down);
+            ray.origin = rayTestPosition;
 
-            if (!HitSomething(ray, out hit)) continue;
-            if (hit.transform.tag.Equals("IgnoreRaycast")) continue;  //can be replaced with whatever you want
-            if (IsToSteep(hit.normal, ray.direction)) continue;
+            if (!HitSomething(ray, out hit) || IsToSteep(hit.normal, ray.direction)) continue;
 
-            Quaternion rotation = GetRotation(hit.normal);
+            Quaternion rotation = GetRotationFromNormal(hit.normal);
             Vector3 scale = GetRandomScale();
             Vector3 targetPos = hit.point;
 
-            targetPos.y += scale.y / 2f; //keep or remove, depends on your mesh
+            targetPos.y += scale.y / 2f; //keep or remove, depends on your mesh scaling
             _trsList.Add(Matrix4x4.TRS(targetPos, rotation, scale));
             _trueInstanceCount++;
         }
@@ -115,33 +111,38 @@ public class GrassInstancerIndirect : MonoBehaviour {
 
     }
 
-    private bool HitSomething(Ray ray, out RaycastHit hit) {
-        return Physics.Raycast(ray, out hit, _groundLayer);
+    private bool HitSomething(Ray ray, out RaycastHit hit)
+    {
+        return Physics.Raycast(ray, out hit, Mathf.Infinity, _groundLayer);
     }
 
-    private Vector3 GetRandomRayPosition() {
+    private Vector3 GetRandomRayPosition()
+    {
         return new Vector3(transform.position.x + Random.Range(-_range.x, _range.x), transform.position.y + 100, transform.position.z + Random.Range(-_range.y, _range.y));
     }
 
-    private bool IsToSteep(Vector3 normal, Vector3 direction) {
+    private bool IsToSteep(Vector3 normal, Vector3 direction)
+    {
         float dot = Mathf.Abs(Vector3.Dot(normal, direction));
         return dot < _steepness;
     }
 
-    private Vector3 GetRandomScale() {
+    private Vector3 GetRandomScale()
+    {
         return new Vector3(Random.Range(_scaleMin.x, _scaleMax.x), Random.Range(_scaleMin.y, _scaleMax.y), Random.Range(_scaleMin.z, _scaleMax.z));
     }
 
-    private Quaternion GetRotation(Vector3 normal) {
+    private Quaternion GetRotationFromNormal(Vector3 normal)
+    {
         Vector3 eulerIdentiy = Quaternion.ToEulerAngles(Quaternion.identity);
-        eulerIdentiy.x += 90; //can be removed or changed, depends on your mesh
+        eulerIdentiy.x += 90; //can be removed or changed, depends on your mesh orientation
 
         if (_randomYAxisRotation) eulerIdentiy.y += Random.Range(-_maxYRotation, _maxYRotation);
 
-        if (_rotateToGroundNormal) {
+        if (_rotateToGroundNormal)
+        {
             return Quaternion.FromToRotation(Vector3.up, normal) * Quaternion.Euler(eulerIdentiy);
         }
         return Quaternion.Euler(eulerIdentiy);
-
     }
 }
