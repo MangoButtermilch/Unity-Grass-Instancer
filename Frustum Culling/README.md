@@ -48,7 +48,7 @@ Just note: to read back the amount of entries inside the buffer we need an addit
 ````
 
 
-## Example with 16777216 but only around 600k rendered
+## Example with 16777216 instances but only around 600k rendered due to frustum culling
 ![Alt text](../Screenshots/Frustum_culling_example.png?raw=true "Frustum culling example")
 
 ## Known issues/TODOs
