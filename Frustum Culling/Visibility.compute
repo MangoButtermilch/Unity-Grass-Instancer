@@ -1,0 +1,46 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+
+float4 viewFrustumPlanes[6];
+float4 camPos;
+float maxViewDistance;
+
+RWStructuredBuffer<float4x4> trsBuffer;
+AppendStructuredBuffer<float4x4> visibleList;
+
+float planeDistance(float4 plane, float3 p) {
+    return dot(plane.xyz, p) + plane.w;
+} 
+
+bool isInFrontOfPlane(float4 plane, float3 p) {
+    return planeDistance(plane, p) > 0;
+}
+
+[numthreads(512,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+
+    uint instanceID = id.x;
+    float4x4 transform = trsBuffer[instanceID];
+   
+    float3 instancePosition = mul(transform, float4(0, 0, 0, 1)).xyz;
+
+    float distToCam = distance(camPos.xyz, instancePosition);
+
+    if(distToCam > maxViewDistance) return;
+
+    bool isVisible = true;
+    //Pseudo optimization here: near and far plane are stored in the last 2 indices
+    //Thus by evaluating them first we should break the loop earlier (?)
+    for (int i = 5; i >= 0; i--) {
+        if (!isInFrontOfPlane(viewFrustumPlanes[i], instancePosition)) {
+            isVisible = false;
+            break;
+        }
+    }
+
+    if (isVisible) {
+        visibleList.Append(transform);
+    } 
+}
