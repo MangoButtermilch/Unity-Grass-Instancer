@@ -6,11 +6,16 @@
 
 Video showcase: https://www.youtube.com/watch?v=pJSKUQJqBUs
 
-## Project contains 2 approaches
+
+## Project contains 3 approaches
 - GrassInstancer.cs is using Unitys DrawMeshInstanced function which needs an array of Matrix4x4 to render the grass with a maximum batch size of 1023
   - This one is slower but has some dummy frustum culling
 - GrassInstancerIndirect.cs is using Unitys DrawMeshInstancedIndirect function which uses compute buffers and has basically a unlimited batch size 
   - This one is way faster (about 20x times with my setup) but has no frustum culling (yet)
+- Frustum culling
+  - same as GrassInstancerIndirect.cs but with an additional compute shader for the culling. Increases performance tremendously
+
+## [Frustum culling approach](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/Frustum%20Culling)
 
 ## Resources
 - I got started with this project by this great video about GPU instancing: https://www.youtube.com/watch?v=eyaxqo9JV4w
@@ -122,6 +127,3 @@ Vertex shader part 1
 
 Vertex shader part 2
 ![Alt text](Screenshots/Vertex_shader_2.png?raw=true "Vertex shader 2")
-
-## Known issues
-My approach on grass rendering isn't that optimized. You might want to have a look at Acerola's channel, he has also uploaded his code to Github: https://www.youtube.com/c/Acerola_t
