@@ -2,6 +2,8 @@
 ## This approach uses DrawMeshInstancedIndirect with a dynamic AppendStructuredBuffer and a compute shader
 
 
+![Alt text](../Screenshots/Frustum_culling_example.png?raw=true "Frustum culling example")
+
 
 ## Rough explanation
 - First we initialize our instances same as before
@@ -47,9 +49,6 @@ Just note: to read back the amount of entries inside the buffer we need an addit
     }
 ````
 
-
-## Example with 16777216 instances but only around 600k rendered due to frustum culling
-![Alt text](../Screenshots/Frustum_culling_example.png?raw=true "Frustum culling example")
 
 ## Known issues/TODOs
 - `_recieveShadow` causes some weird artifacts on the instances -> can't figure out why
