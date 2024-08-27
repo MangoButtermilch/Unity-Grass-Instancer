@@ -10,7 +10,7 @@ Video showcase: https://www.youtube.com/watch?v=pJSKUQJqBUs
 
 ## Project contains 3 approaches
 
-- Plain instanced rendering using `DrawMeshInstanced` and `DrawMeshInstancedIndirect` without any optimizations ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/Frustum%20Culling))
+- Plain instanced rendering using `DrawMeshInstanced` and `DrawMeshInstancedIndirect` without any optimizations ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/No%20Optimizations))
 - Frustum culled approach ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/Frustum%20Culling))
 - Frustum culled approach with chunking ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/Frustum%20Culling%20%2B%20Chunking))
 
