@@ -1,0 +1,75 @@
+#pragma kernel ChunkRender
+
+#define THREADS_CHUNK_RENDER 64
+
+float4 viewFrustumPlanes[6];
+float4 camPos;
+float maxViewDistance;
+
+struct Chunk {
+    float3 position;
+    int instanceStartIndex;
+    int instanceCount;
+};
+
+int instanceCount;
+int chunkSize;
+int numChunks;
+
+RWStructuredBuffer<Chunk> chunkBuffer;
+RWStructuredBuffer<float4x4> trsBuffer;
+AppendStructuredBuffer<float4x4> visibleList;
+
+float planeDistance(float4 plane, float3 p) {
+    return dot(plane.xyz, p) + plane.w;
+} 
+
+bool isInFrontOfPlane(float4 plane, float3 p) {
+    return planeDistance(plane, p) > 0;
+}
+
+ bool isChunkInFrustum(float3 chunkPosition) {
+
+    for (int i = 5; i >= 0; i--) {
+        if (!isInFrontOfPlane(viewFrustumPlanes[i], chunkPosition)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+[numthreads(THREADS_CHUNK_RENDER,1,1)]
+void ChunkRender (uint3 id : SV_DispatchThreadID)
+{
+
+    Chunk chunk = chunkBuffer[id.x];
+    if (!isChunkInFrustum(chunk.position)) {
+       return;
+    }
+    
+    float distToCam = distance(camPos.xyz, chunk.position);
+    if (distToCam > maxViewDistance) return;
+
+    int start = chunk.instanceStartIndex;
+    int end = start + chunk.instanceCount + 1;
+
+    for (int i = start; i < end; i++) {
+        float4x4 instanceTransform = trsBuffer[i];
+        float3 instancePosition = mul(instanceTransform, float4(0, 0, 0, 1)).xyz;
+
+        bool isVisible = true;
+        //Pseudo optimization here: near and far plane are stored in the last 2 indices
+        //Thus by evaluating them first we should break the loop earlier (?)
+        for (int p = 5; p >= 0; p--) {
+            if (!isInFrontOfPlane(viewFrustumPlanes[p], instancePosition)) {
+                isVisible = true;
+                break;
+            }
+        }
+
+        if (isVisible) {
+            visibleList.Append(instanceTransform);
+        } 
+    }
+
+}

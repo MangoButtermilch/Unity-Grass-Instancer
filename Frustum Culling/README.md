@@ -16,7 +16,7 @@
 - `_argsBuffer` will then recieve the new data with the amount of visible items
 - Call DrawMeshInstancedIndirect with the `_argsBuffer` and let instance rendering shader do the rest
 
-
+## [See in combination with chunking](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/Frustum%20Culling)
 
 ### How do we know that an instance is inside the view frustum?
 We provide this array to the compute shader: `float4 viewFrustmPlanes[6]` which is filled with data from `GeometryUtility.CalculateFrustumPlanes`.
@@ -50,7 +50,6 @@ Just note: to read back the amount of entries inside the buffer we need an addit
 ````
 
 
-## Known issues/TODOs
+## TODOs
+- Occlusion culling is next on my bucket list
 - `_recieveShadow` causes some weird artifacts on the instances -> can't figure out why
-- Some sort of chunk system would be even better for performance
-- Occlusion culling would be nice to have
