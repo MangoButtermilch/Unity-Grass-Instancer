@@ -57,6 +57,7 @@ public class GrassInstancerIndirect : MonoBehaviour
     [SerializeField] private int _chunkSize = 16;
     private ComputeBuffer _chunkBuffer;
     private Chunk[] _chunks;
+    private int _numChunks;
     [SerializeField] private uint _threadsChunkRender;
 
     private int _kernelChunkRender;
@@ -112,7 +113,7 @@ public class GrassInstancerIndirect : MonoBehaviour
 
         _visibleBuffer = new ComputeBuffer(_trueInstanceCount, sizeof(float) * 4 * 4, ComputeBufferType.Append);
 
-        _chunkBuffer = new ComputeBuffer(_chunks.Length, 3 * sizeof(float) + 2 * sizeof(int));
+        _chunkBuffer = new ComputeBuffer(_numChunks, 3 * sizeof(float) + 2 * sizeof(int));
         _chunkBuffer.SetData(_chunks);
 
         _visiblityComputeShader.SetBuffer(_kernelChunkRender, "trsBuffer", _trsBuffer);
@@ -120,7 +121,7 @@ public class GrassInstancerIndirect : MonoBehaviour
         _visiblityComputeShader.SetBuffer(_kernelChunkRender, "chunkBuffer", _chunkBuffer);
 
         _visiblityComputeShader.SetInt("chunkSize", _chunkSize);
-        _visiblityComputeShader.SetInt("numChunks", _chunks.Length);
+        _visiblityComputeShader.SetInt("numChunks", _numChunks);
         _visiblityComputeShader.SetInt("chunkSize", _chunkSize);
         _visiblityComputeShader.SetInt("instanceCount", _trueInstanceCount);
 
@@ -129,6 +130,9 @@ public class GrassInstancerIndirect : MonoBehaviour
         _argsBuffer = new ComputeBuffer(1, 5 * sizeof(uint), ComputeBufferType.IndirectArguments);
         _readBackArgsBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Raw);
         _material.SetBuffer("visibleList", _visibleBuffer);
+
+        //Data is now all on GPU
+        _chunks = null;
     }
 
 
@@ -144,7 +148,7 @@ public class GrassInstancerIndirect : MonoBehaviour
         _visiblityComputeShader.SetVectorArray("viewFrustumPlanes", GetViewFrustumPlaneNormals());
 
         _visibleBuffer.SetCounterValue(0);
-        _visiblityComputeShader.Dispatch(_kernelChunkRender, Mathf.CeilToInt(_chunks.Length / _threadsChunkRender), 1, 1);
+        _visiblityComputeShader.Dispatch(_kernelChunkRender, Mathf.CeilToInt(_numChunks / _threadsChunkRender), 1, 1);
 
         SetVisibleInstanceCount();
 
@@ -186,8 +190,8 @@ public class GrassInstancerIndirect : MonoBehaviour
         int wholeRangeX = (int)(_range.x * 2);
         int wholeRangeZ = (int)(_range.y * 2);
 
-        int numChunks = Mathf.CeilToInt(wholeRangeX / _chunkSize) * Mathf.CeilToInt(wholeRangeZ / _chunkSize);
-        _chunks = new Chunk[numChunks];
+        _numChunks = Mathf.CeilToInt(wholeRangeX / _chunkSize) * Mathf.CeilToInt(wholeRangeZ / _chunkSize);
+        _chunks = new Chunk[_numChunks];
 
         //Used for centering grid
         int chunkSizeHalf = Mathf.CeilToInt(_chunkSize / 2);
@@ -201,7 +205,7 @@ public class GrassInstancerIndirect : MonoBehaviour
 
         int chunksPerRow = wholeRangeX / _chunkSize;
 
-        for (int i = 0; i < numChunks; i++)
+        for (int i = 0; i < _numChunks; i++)
         {
             Vector3 p = gridStartPos;
             p.x += _chunkSize * xOffset;
@@ -237,9 +241,9 @@ public class GrassInstancerIndirect : MonoBehaviour
         Vector3 dir = Vector3.down;
         QueryParameters parameters = new QueryParameters(_groundLayer, false);
 
-        int instancesPerChunk = Mathf.FloorToInt(_instances / _chunks.Length);
+        int instancesPerChunk = Mathf.FloorToInt(_instances / _numChunks);
 
-        for (int c = 0; c < _chunks.Length; c++)
+        for (int c = 0; c < _numChunks; c++)
         {
             NativeArray<RaycastHit> chunkResults = new NativeArray<RaycastHit>(instancesPerChunk, Allocator.TempJob);
             NativeArray<RaycastCommand> chunkCommands = new NativeArray<RaycastCommand>(instancesPerChunk, Allocator.TempJob);
