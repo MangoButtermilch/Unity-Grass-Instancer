@@ -2,25 +2,16 @@
 ## Contains C# scripts and shaders for GPU instanced grass (or any other mesh)
 ### Made with Unity 2020.3.4f1 and HDRP 10.4.0
 
-![Alt text](Screenshots/showcase.gif?raw=true "Showcase")
+![Alt text](../Screenshots/showcase.gif?raw=true "Showcase")
 
 Video showcase: https://www.youtube.com/watch?v=pJSKUQJqBUs
 
 
-## Project contains 3 approaches
-- GrassInstancer.cs is using Unitys DrawMeshInstanced function which needs an array of Matrix4x4 to render the grass with a maximum batch size of 1023
+## This (old) approach contains two scripts:
+- GrassInstancer.cs is using Unitys `DrawMeshInstanced` function which needs an array of Matrix4x4 to render the grass with a maximum batch size of 1023
   - This one is slower but has some dummy frustum culling
-- GrassInstancerIndirect.cs is using Unitys DrawMeshInstancedIndirect function which uses compute buffers and has basically a unlimited batch size 
-  - This one is way faster (about 20x times with my setup) but has no frustum culling (yet)
-- Frustum culling
-  - same as GrassInstancerIndirect.cs but with an additional compute shader for the culling. Increases performance tremendously
-
-## [Frustum culling approach](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/Frustum%20Culling)
-
-## Resources
-- I got started with this project by this great video about GPU instancing: https://www.youtube.com/watch?v=eyaxqo9JV4w
-- I found a lot of information about grass rendering on Acerola's youtube channel: https://www.youtube.com/c/Acerola_t
-  - I'm also using his 3D-Models in my showcase
+- GrassInstancerIndirect.cs is using Unitys `DrawMeshInstancedIndirect` function which uses compute buffers and has basically a unlimited batch size 
+  - This one is way faster (about 20x times with my setup) but has no frustum culling [(but this one does)]([https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/Frustum%20Culling](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/Frustum%20Culling%20%2B%20Chunking))
 
 # Information for GrassInstancer.cs
 ## How to use
@@ -32,7 +23,7 @@ Video showcase: https://www.youtube.com/watch?v=pJSKUQJqBUs
 - Create a material with the shader (or your own shader)
 
 ## Example settings
-![Alt text](Screenshots/Settings.png?raw=true "Settings")
+![Alt text](../Screenshots/Settings.png?raw=true "Settings")
 
 ## Properties explained
 - Draw Gizmos - Will draw a bounding box inside OnDrawGizmos() for debugging
@@ -52,16 +43,16 @@ Video showcase: https://www.youtube.com/watch?v=pJSKUQJqBUs
 
 ## Behind the scenes
 The script will create a box where it shoots down raycasts to detect possible mesh positions
-![Alt text](Screenshots/Volume_box.png?raw=true "Volume box")
+![Alt text](../Screenshots/Volume_box.png?raw=true "Volume box")
 
 I got the best results with overlapping volumes
-![Alt text](Screenshots/Voumes_overlap.png?raw=true "Volumes overlapping")
-![Alt text](Screenshots/Rendering.png?raw=true "Volumes overlapping")
+![Alt text](../Screenshots/Voumes_overlap.png?raw=true "Volumes overlapping")
+![Alt text](../Screenshots/Rendering.png?raw=true "Volumes overlapping")
 
 ## Material config
 Be sure to check GPU instancing on your material or it can't be instanced
 
-![Alt text](Screenshots/Material.png?raw=true "Material")
+![Alt text](../Screenshots/Material.png?raw=true "Material")
 
 
  
@@ -73,7 +64,7 @@ Be sure to check GPU instancing on your material or it can't be instanced
 - Create a material with the shader (or your own shader)
 
 ## Example settings
-![Alt text](Screenshots/Indirect_settings.png?raw=true "Indirect settings")
+![Alt text](../Screenshots/Indirect_settings.png?raw=true "Indirect settings")
 
 ## Properties explained
 - Draw Gizmos - Will draw a bounding box inside OnDrawGizmos() for debugging
@@ -95,14 +86,14 @@ Be sure to check GPU instancing on your material or it can't be instanced
 The script will also create a box where it shoots down raycasts to detect possible mesh positions.
 
 For this approach I recommend using one big volume
-![Alt text](Screenshots/Indirect_bhs.png?raw=true "Indirect behind the scenes")
+![Alt text](../Screenshots/Indirect_bhs.png?raw=true "Indirect behind the scenes")
 
 Approximately 2 million grass blades at 60 FPS
-![Alt text](Screenshots/Indirect_rendering.png?raw=true "Volumes overlapping")
+![Alt text](../Screenshots/Indirect_rendering.png?raw=true "Volumes overlapping")
 
 
 ## Material config
-![Alt text](Screenshots/Indirect_Material.png?raw=true "Material")
+![Alt text](../Screenshots/Indirect_Material.png?raw=true "Material")
 
 ## Shader info
 
@@ -120,10 +111,10 @@ You can use the shadergraph if you are using Unity 2021.2 or higher, otherwise y
 Here's the graph itself:
 
 Fragment shader
-![Alt text](Screenshots/Fragment_shader.png?raw=true "Fragment shader")
+![Alt text](../Screenshots/Fragment_shader.png?raw=true "Fragment shader")
 
 Vertex shader part 1
-![Alt text](Screenshots/Vertex_shader_1.png?raw=true "Vertex shader 1")
+![Alt text](../Screenshots/Vertex_shader_1.png?raw=true "Vertex shader 1")
 
 Vertex shader part 2
-![Alt text](Screenshots/Vertex_shader_2.png?raw=true "Vertex shader 2")
+![Alt text](../Screenshots/Vertex_shader_2.png?raw=true "Vertex shader 2")
