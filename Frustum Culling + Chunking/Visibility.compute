@@ -29,26 +29,44 @@ bool isInFrontOfPlane(float4 plane, float3 p) {
 }
 
  bool isChunkInFrustum(float3 chunkPosition) {
+    float3 halfSize = chunkSize * 0.5;
+    float3 corners[8] = {
+        chunkPosition - halfSize,
+        chunkPosition + float3(halfSize.x, -halfSize.y, -halfSize.z),
+        chunkPosition + float3(-halfSize.x, halfSize.y, -halfSize.z),
+        chunkPosition + float3(halfSize.x, halfSize.y, -halfSize.z),
+        chunkPosition - float3(halfSize.x, 0, halfSize.z),
+        chunkPosition + float3(halfSize.x, 0, halfSize.z),
+        chunkPosition + float3(-halfSize.x, 0, halfSize.z),
+        chunkPosition + halfSize
+    };
 
-    for (int i = 5; i >= 0; i--) {
-        if (!isInFrontOfPlane(viewFrustumPlanes[i], chunkPosition)) {
-            return false;
+     for (int i = 0; i < 8; i++) { 
+        bool isInside = true;
+        for (int j = 0; j < 6; j++) {
+            if (!isInFrontOfPlane(viewFrustumPlanes[j], corners[i])) {
+                isInside = false;
+                break;
+            }
+        }
+        if (isInside) {
+            return true;
         }
     }
-    return true;
+
+    return false;
 }
 
 [numthreads(THREADS_CHUNK_RENDER,1,1)]
 void ChunkRender (uint3 id : SV_DispatchThreadID)
 {
-
+ 
     Chunk chunk = chunkBuffer[id.x];
-    if (!isChunkInFrustum(chunk.position)) {
+    if (
+        !isChunkInFrustum(chunk.position) || 
+        distance(camPos.xyz, chunk.position) > maxViewDistance) {
        return;
     }
-    
-    float distToCam = distance(camPos.xyz, chunk.position);
-    if (distToCam > maxViewDistance) return;
 
     int start = chunk.instanceStartIndex;
     int end = start + chunk.instanceCount + 1;
@@ -56,20 +74,6 @@ void ChunkRender (uint3 id : SV_DispatchThreadID)
     for (int i = start; i < end; i++) {
         float4x4 instanceTransform = trsBuffer[i];
         float3 instancePosition = mul(instanceTransform, float4(0, 0, 0, 1)).xyz;
-
-        bool isVisible = true;
-        //Pseudo optimization here: near and far plane are stored in the last 2 indices
-        //Thus by evaluating them first we should break the loop earlier (?)
-        for (int p = 5; p >= 0; p--) {
-            if (!isInFrontOfPlane(viewFrustumPlanes[p], instancePosition)) {
-                isVisible = true;
-                break;
-            }
-        }
-
-        if (isVisible) {
-            visibleList.Append(instanceTransform);
-        } 
+        visibleList.Append(instanceTransform);
     }
-
 }
