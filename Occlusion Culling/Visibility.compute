@@ -1,0 +1,100 @@
+#pragma kernel ChunkRender
+
+#define THREADS_CHUNK_RENDER 64
+
+float4 viewFrustumPlanes[6];
+float4 camPos;
+float maxViewDistance;
+float depthBias;
+
+float4x4 vpMatrix;
+
+struct Chunk {
+    float3 position;
+    int instanceStartIndex;
+    int instanceCount;
+};
+
+int instanceCount;
+int chunkSize;
+int numChunks;
+
+RWStructuredBuffer<Chunk> chunkBuffer;
+RWStructuredBuffer<float4x4> trsBuffer;
+AppendStructuredBuffer<float4x4> visibleList; 
+ 
+
+Texture2D<float4> _DepthTexture;
+SamplerState sampler_DepthTexture;
+
+ 
+float planeDistance(float4 plane, float3 p) {
+    return dot(plane.xyz, p) + plane.w;
+} 
+
+bool isInFrontOfPlane(float4 plane, float3 p) {
+    return planeDistance(plane, p) > 0;
+}
+
+bool isChunkInFrustum(float3 chunkPosition) {
+    float halfSize = chunkSize * 0.5;
+    float3 corners[8] = {
+        chunkPosition + float3(halfSize, halfSize, halfSize),  
+        chunkPosition + float3(-halfSize, halfSize, halfSize),  
+        chunkPosition + float3(halfSize, halfSize, -halfSize), 
+        chunkPosition + float3(-halfSize, halfSize, -halfSize), 
+        chunkPosition + float3(halfSize, -halfSize, halfSize), 
+        chunkPosition + float3(-halfSize, -halfSize, halfSize),
+        chunkPosition + float3(halfSize, -halfSize, -halfSize), 
+        chunkPosition + float3(-halfSize, -halfSize, -halfSize) 
+    };
+
+     for (int i = 0; i < 8; i++) { 
+        bool isInside = true;
+        for (int j = 0; j < 6; j++) {
+            if (!isInFrontOfPlane(viewFrustumPlanes[j], corners[i])) {
+                isInside = false;
+                break;
+            }
+        }
+        if (isInside) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool isChunkOccluded(float3 chunkPosition) {
+    float4 projectedPos = mul(vpMatrix, float4(chunkPosition, 1.0f));
+    float2 projectedUV = (projectedPos.xy / projectedPos.w + 1.0f) * 0.5f; 
+    
+    float sceneDepth = _DepthTexture.SampleLevel(sampler_DepthTexture, projectedUV, 0).r;
+    float chunkDepth = (projectedPos.z / projectedPos.w);
+
+    return chunkDepth < sceneDepth - depthBias;
+}
+
+[numthreads(THREADS_CHUNK_RENDER,1,1)]
+void ChunkRender (uint3 id : SV_DispatchThreadID)
+{
+    Chunk chunk = chunkBuffer[id.x];
+
+    //Order is important here for  performance
+    if (distance(camPos.xyz, chunk.position) > maxViewDistance ||
+        !isChunkInFrustum(chunk.position) ||
+        isChunkOccluded(chunk.position))
+    {
+        return;
+    }
+
+
+    int start = chunk.instanceStartIndex;
+    int end = start + chunk.instanceCount;
+
+    for (int i = start; i < end; i++) {
+        float4x4 instanceTransform = trsBuffer[i];
+        float3 instancePosition = mul(instanceTransform, float4(0, 0, 0, 1)).xyz;
+        visibleList.Append(instanceTransform);
+    }
+}

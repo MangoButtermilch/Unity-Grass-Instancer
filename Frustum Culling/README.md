@@ -48,8 +48,3 @@ Just note: to read back the amount of entries inside the buffer we need an addit
         _visibleInstanceCount = appendBufferCount[0];
     }
 ````
-
-
-## TODOs
-- Occlusion culling is next on my bucket list
-- `_recieveShadow` causes some weird artifacts on the instances -> can't figure out why

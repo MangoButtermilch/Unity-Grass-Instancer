@@ -14,8 +14,3 @@
     - the compute shader can then check first if all chunks are visible instead of all instances 
     - if a chunk is visible, we can use its `start` and `count` variables to determine which instances we want to append to the `visibleList` which is a `AppendStructuredBuffer`
  
-
-
-## TODOs
-- Occlusion culling is next on my bucket list
-- `_recieveShadow` causes some weird artifacts on the instances -> can't figure out why
