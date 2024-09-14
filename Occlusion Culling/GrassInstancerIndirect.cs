@@ -4,7 +4,8 @@ using Unity.Collections;
 using Unity.Jobs;
 using System;
 using UnityEngine.Rendering;
-
+using System.Diagnostics;
+using Unity.Mathematics;
 struct Chunk
 {
     public Vector3 position; //World position of chunk
@@ -66,6 +67,12 @@ public class GrassInstancerIndirect : MonoBehaviour
     private Texture _cameraDepthTexture;
     [SerializeField][Range(0.0001f, 0.1f)] private float _depthBias = 0.001f;
 
+    [Header("Terrain")]
+    [SerializeField] private Terrain _terrain;
+    private TerrainData _terrainData;
+    private int _kernelInitializePositions;
+    [SerializeField] private readonly int _threadsChunkInit = 64;
+    private ComputeBuffer _instanceCounterBuffer;
 
     private void Start()
     {
@@ -74,7 +81,6 @@ public class GrassInstancerIndirect : MonoBehaviour
 
         InitializeGrassChunkPositions();
         InitializeGrassInstancesPerChunk();
-        InitializeComputeShaderAndMaterial();
     }
 
     private void Update()
@@ -89,7 +95,6 @@ public class GrassInstancerIndirect : MonoBehaviour
         RenderInstances();
     }
 
-
     private void OnDestroy()
     {
         _argsBuffer?.Release();
@@ -102,6 +107,8 @@ public class GrassInstancerIndirect : MonoBehaviour
         _readBackArgsBuffer?.Dispose();
         _chunkBuffer?.Release();
         _chunkBuffer?.Dispose();
+        _instanceCounterBuffer?.Release();
+        _instanceCounterBuffer?.Dispose();
     }
 
     private void OnDrawGizmos()
@@ -109,47 +116,6 @@ public class GrassInstancerIndirect : MonoBehaviour
         if (!_drawGizmos) return;
         Gizmos.color = Color.red;
         Gizmos.DrawWireCube(transform.position, new Vector3(_range.x * 2, 5, _range.y * 2));
-
-
-        Gizmos.color = Color.green;
-        if (_chunks == null) return;
-        foreach (Chunk c in _chunks)
-        {
-            Gizmos.DrawWireCube(c.position, _chunkSize * Vector3.one);
-        }
-    }
-
-    /// <summary>
-    /// Initializes all buffers and variables for compute shader + material.
-    /// </summary>
-    private void InitializeComputeShaderAndMaterial()
-    {
-        _kernelChunkRender = _visiblityComputeShader.FindKernel("ChunkRender");
-
-        _visibleBuffer = new ComputeBuffer(_trueInstanceCount, sizeof(float) * 4 * 4, ComputeBufferType.Append);
-
-        _chunkBuffer = new ComputeBuffer(_numChunks, 3 * sizeof(float) + 2 * sizeof(int));
-        _chunkBuffer.SetData(_chunks);
-
-        _visiblityComputeShader.SetFloat("depthBias", _depthBias); // to avoid precision errors and flickering chunks
-
-        _visiblityComputeShader.SetBuffer(_kernelChunkRender, "trsBuffer", _trsBuffer);
-        _visiblityComputeShader.SetBuffer(_kernelChunkRender, "visibleList", _visibleBuffer);
-        _visiblityComputeShader.SetBuffer(_kernelChunkRender, "chunkBuffer", _chunkBuffer);
-
-        _visiblityComputeShader.SetInt("chunkSize", _chunkSize);
-        _visiblityComputeShader.SetInt("numChunks", _numChunks);
-        _visiblityComputeShader.SetInt("chunkSize", _chunkSize);
-        _visiblityComputeShader.SetInt("instanceCount", _trueInstanceCount);
-
-        _visiblityComputeShader.SetVectorArray("viewFrustumPlanes", GetViewFrustumPlaneNormals());
-
-        _argsBuffer = new ComputeBuffer(1, 5 * sizeof(uint), ComputeBufferType.IndirectArguments);
-        _readBackArgsBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Raw);
-        _material.SetBuffer("visibleList", _visibleBuffer);
-
-        //Data is now all on GPU
-        if (!_drawGizmos) _chunks = null;
     }
 
 
@@ -248,86 +214,139 @@ public class GrassInstancerIndirect : MonoBehaviour
     }
 
     /// <summary>
-    /// Initializes grass instances for each chunk by performing raycasts to determine valid placement positions.
+    /// Initializes grass instances for each chunk via compute shader
     /// </summary>
-    /// <remarks>
-    /// For each chunk, this method:
-    /// 1. Calculates the number of instances needed based on the total instances and number of chunks.
-    /// 2. Performs raycasts within the chunk to find valid ground positions.
-    /// 3. Filters out positions that are too steep based on the ground normal.
-    /// 4. Generates transformation matrices (position, rotation, scale) for each valid instance and stores them in a list.
-    /// 5. Updates the chunk's instance count and start index in the global list.
-    /// 6. Calculates the average Y position of instances in each chunk for accurate chunk positioning.
-    /// 7. Uploads the transformation data to a compute buffer for GPU processing.
-    /// </remarks>
     private void InitializeGrassInstancesPerChunk()
     {
+        _terrainData = _terrain.terrainData;
+
         _trueInstanceCount = 0;
         _renderBounds = new Bounds(transform.position, Vector3.one * _range.x);
-
-        Vector3 dir = Vector3.down;
-        QueryParameters parameters = new QueryParameters(_groundLayer, false);
 
         int instancesPerChunk = Mathf.FloorToInt(_instances / _numChunks);
         print("Num chunks : " + _numChunks);
         print("instances per chunk : " + instancesPerChunk);
 
-        for (int c = 0; c < _numChunks; c++)
-        {
-            NativeArray<RaycastHit> chunkResults = new NativeArray<RaycastHit>(instancesPerChunk, Allocator.TempJob);
-            NativeArray<RaycastCommand> chunkCommands = new NativeArray<RaycastCommand>(instancesPerChunk, Allocator.TempJob);
+        _kernelChunkRender = _visiblityComputeShader.FindKernel("ChunkRender");
+        _kernelInitializePositions = _visiblityComputeShader.FindKernel("InitializeGrassPositions");
 
-            for (int i = 0; i < instancesPerChunk; i++)
-            {
-                chunkCommands[i] = new RaycastCommand(GetRandomRayPositionForChunk(_chunks[c]), dir, parameters);
-            }
+        _visiblityComputeShader.SetInt("numChunks", _numChunks);
+        _visiblityComputeShader.SetInt("chunkSize", _chunkSize);
+        _visiblityComputeShader.SetInt("instancesPerChunk", instancesPerChunk);
+        _visiblityComputeShader.SetFloat("wholeRange", _range.x * 2);
+        _visiblityComputeShader.SetFloat("steepness", _steepness);
 
-            JobHandle handle = RaycastCommand.ScheduleBatch(chunkCommands, chunkResults, 16, default);
-            handle.Complete();
+        _visiblityComputeShader.SetVector("scaleMin", _scaleMin);
+        _visiblityComputeShader.SetVector("scaleMin", _scaleMax);
 
-            for (int i = 0; i < chunkResults.Length; i++)
-            {
-                RaycastHit hit = chunkResults[i];
-                if (IsToSteep(hit.normal, dir)) continue;
+        _visiblityComputeShader.SetVector("terrainSize", _terrainData.size);
+        _visiblityComputeShader.SetVector("terrainPos", _terrain.transform.position);
+        _visiblityComputeShader.SetInt("terrainHeightmapResolution", _terrainData.heightmapResolution);
+        _visiblityComputeShader.SetTexture(_kernelInitializePositions, "Heightmap", _terrainData.heightmapTexture);
+        _visiblityComputeShader.SetTexture(_kernelInitializePositions, "Splatmap", _terrainData.alphamapTextures[0]);
 
-                Quaternion rotation = GetRotationFromNormal(hit.normal);
-                Vector3 scale = GetRandomScale();
-                Vector3 targetPos = hit.point;
-
-                targetPos.y += scale.z / 2f; //keep or remove, depends on your mesh scaling
-                _trsList.Add(Matrix4x4.TRS(targetPos, rotation, scale));
-
-                _chunks[c].instanceCount++;
-
-                _trueInstanceCount++;
-            }
-
-            int lastIndex = _trsList.Count;
-            int firstIndex = lastIndex - _chunks[c].instanceCount;
-            _chunks[c].instanceStartIndex = firstIndex;
-
-            //Adjusting chunk y position to the average of all instances inside it
-            float sumY = 0f;
-
-            int start = _chunks[c].instanceStartIndex;
-            int end = start + _chunks[c].instanceCount;
-            for (int i = start; i < end; i++)
-            {
-                sumY += _trsList[i].GetColumn(3).y; //y coord
-            }
-            int count = _chunks[c].instanceCount;
-            float averageY = count > 0 ? sumY / count : _chunks[c].position.y;
-            _chunks[c].position.y = averageY;
-
-            chunkResults.Dispose();
-            chunkCommands.Dispose();
-        }
+        _visiblityComputeShader.SetFloat("depthBias", _depthBias);
+        _visiblityComputeShader.SetVectorArray("viewFrustumPlanes", GetViewFrustumPlaneNormals());
 
 
-        _trsBuffer = new ComputeBuffer(_trueInstanceCount, 4 * 4 * sizeof(float));
-        _trsBuffer.SetData(_trsList.ToArray());
+        _trsBuffer = new ComputeBuffer(_instances, 4 * 4 * sizeof(float));
+        _argsBuffer = new ComputeBuffer(1, 5 * sizeof(uint), ComputeBufferType.IndirectArguments);
+        _readBackArgsBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Raw);
 
-        _trsList.Clear();
+
+        _instanceCounterBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Raw);
+        _instanceCounterBuffer.SetData(new int[] { 0 });
+
+        _chunkBuffer = new ComputeBuffer(_numChunks, 3 * sizeof(float) + 2 * sizeof(int));
+        _chunkBuffer.SetData(_chunks);
+
+
+        _visiblityComputeShader.SetBuffer(_kernelInitializePositions, "trsBuffer", _trsBuffer);
+        _visiblityComputeShader.SetBuffer(_kernelInitializePositions, "instanceCounter", _instanceCounterBuffer);
+        _visiblityComputeShader.SetBuffer(_kernelInitializePositions, "chunkBuffer", _chunkBuffer);
+
+        _visiblityComputeShader.SetBuffer(_kernelChunkRender, "trsBuffer", _trsBuffer);
+        _visiblityComputeShader.SetBuffer(_kernelChunkRender, "chunkBuffer", _chunkBuffer);
+
+        _visiblityComputeShader.Dispatch(_kernelInitializePositions, Mathf.CeilToInt(_numChunks / _threadsChunkInit), 1, 1);
+
+        int[] cb = new int[1];
+        _instanceCounterBuffer.GetData(cb);
+        _trueInstanceCount = cb[0];
+
+        _visibleBuffer = new ComputeBuffer(_trueInstanceCount, sizeof(float) * 4 * 4, ComputeBufferType.Append);
+        _visiblityComputeShader.SetBuffer(_kernelChunkRender, "visibleList", _visibleBuffer);
+        _material.SetBuffer("visibleList", _visibleBuffer);
+
+        /*
+                _trsList.Clear();
+
+                // Compute Shader ausführen
+
+                for (int c = 0; c < _numChunks; c++)
+                {
+                    NativeArray<RaycastHit> chunkResults = new NativeArray<RaycastHit>(instancesPerChunk, Allocator.TempJob);
+                    NativeArray<RaycastCommand> chunkCommands = new NativeArray<RaycastCommand>(instancesPerChunk, Allocator.TempJob);
+
+                    for (int i = 0; i < instancesPerChunk; i++)
+                    {
+                        chunkCommands[i] = new RaycastCommand(GetRandomRayPositionForChunk(_chunks[c]), dir, parameters);
+                    }
+
+                    JobHandle handle = RaycastCommand.ScheduleBatch(chunkCommands, chunkResults, 16, default);
+                    handle.Complete();
+
+                    for (int i = 0; i < chunkResults.Length; i++)
+                    {
+                        RaycastHit hit = chunkResults[i];
+                        //   if (IsToSteep(hit.normal, dir)) continue;
+
+                        Quaternion rotation = GetRotationFromNormal(hit.normal);
+                        Vector3 scale = GetRandomScale();
+                        Vector3 targetPos = hit.point;
+
+
+                        //     if (targetPos.y + UnityEngine.Random.value < 5f) continue;
+
+
+                        targetPos.y += scale.z / 2f; //keep or remove, depends on your mesh scaling
+                        _trsList.Add(Matrix4x4.TRS(targetPos, rotation, scale));
+
+                        _chunks[c].instanceCount++;
+
+                        _trueInstanceCount++;
+                    }
+
+                    int lastIndex = _trsList.Count;
+                    int firstIndex = lastIndex - _chunks[c].instanceCount;
+                    _chunks[c].instanceStartIndex = firstIndex;
+
+                    //Adjusting chunk y position to the average of all instances inside it
+                    float sumY = 0f;
+
+                    int start = _chunks[c].instanceStartIndex;
+                    int end = start + _chunks[c].instanceCount;
+                    for (int i = start; i < end; i++)
+                    {
+                        sumY += _trsList[i].GetColumn(3).y; //y coord
+                    }
+                    int count = _chunks[c].instanceCount;
+                    float averageY = count > 0 ? sumY / count : _chunks[c].position.y;
+                    _chunks[c].position.y = averageY;
+
+                    chunkResults.Dispose();
+                    chunkCommands.Dispose();
+                }
+
+                UnityEngine.Debug.LogError("pos: " + _chunks[0].position + " => start: " + _chunks[0].instanceStartIndex + " => count: " + _chunks[0].instanceCount);
+
+                UnityEngine.Debug.LogError(_trsList[0]);
+
+
+                //     _trsBuffer = new ComputeBuffer(_trueInstanceCount, 4 * 4 * sizeof(float));
+                //    _trsBuffer.SetData(_trsList.ToArray());
+
+                _trsList.Clear();*/
     }
 
     private Vector4[] GetViewFrustumPlaneNormals()
@@ -342,40 +361,4 @@ public class GrassInstancerIndirect : MonoBehaviour
         return planeNormals;
     }
 
-    private Vector3 GetRandomRayPositionForChunk(Chunk chunk)
-    {
-        float halfChunkSize = _chunkSize / 2f;
-        return new Vector3(
-        chunk.position.x + UnityEngine.Random.Range(-halfChunkSize, halfChunkSize),
-        chunk.position.y + 1000,
-        chunk.position.z + UnityEngine.Random.Range(-halfChunkSize, halfChunkSize));
-    }
-
-    private bool IsToSteep(Vector3 normal, Vector3 direction)
-    {
-        float dot = Mathf.Abs(Vector3.Dot(normal, direction));
-        return dot < _steepness;
-    }
-
-    private Vector3 GetRandomScale()
-    {
-        return new Vector3(
-            UnityEngine.Random.Range(_scaleMin.x, _scaleMax.x),
-            UnityEngine.Random.Range(_scaleMin.y, _scaleMax.y),
-            UnityEngine.Random.Range(_scaleMin.z, _scaleMax.z));
-    }
-
-    private Quaternion GetRotationFromNormal(Vector3 normal)
-    {
-        Vector3 eulerIdentiy = Quaternion.ToEulerAngles(Quaternion.identity);
-        eulerIdentiy.x += 90; //can be removed or changed, depends on your mesh orientation
-
-        if (_randomYAxisRotation) eulerIdentiy.y += UnityEngine.Random.Range(-_maxYRotation, _maxYRotation);
-
-        if (_rotateToGroundNormal)
-        {
-            return Quaternion.FromToRotation(Vector3.up, normal) * Quaternion.Euler(eulerIdentiy);
-        }
-        return Quaternion.Euler(eulerIdentiy);
-    }
 }
