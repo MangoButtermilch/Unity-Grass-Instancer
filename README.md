@@ -22,7 +22,7 @@ Video showcase: https://www.youtube.com/watch?v=3SGxhRqzCm8
 - A terrain
 - SRP Batcher needs to be disabled
 - Enable GPU instancing on the material
-- 
+  
 ![Material GPU instancing setting](Screenshots/Material.png?raw=true "Material")
 
 ## Setup
