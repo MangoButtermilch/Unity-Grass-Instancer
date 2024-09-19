@@ -68,7 +68,7 @@ This may happend, because you're placing the objects with the material by hand. 
 Another reason could be that the shader is not compatible with your render pipeline. I currently only provide a shader for URP and a [shadergraph for HDRP](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/No%20Optimizations). The HDRP shadergraph only works with `Unity 2021.2` or higher since the instance ID node does not exist in earlier versions. 
 
 
-### If you have more issues, please open an issue here on Github.
+### If you have more problems, please open an issue here on Github.
 
 ## What's next/TODOs
 - Initializing the grass instances completley on the GPU to avoid using Raycasts. [see progress here](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/experimentation/Occlusion%20Culling)
