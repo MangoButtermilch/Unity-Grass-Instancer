@@ -1,10 +1,11 @@
 #pragma kernel ChunkRender
 #pragma kernel InitializeGrassPositions
 
-#define THREADS_CHUNK_RENDER 64
-#define THREADS_CHUNK_INIT 64
+#define THREADS_CHUNK_RENDER 512
+#define THREADS_CHUNK_INIT 512
 
 #include "noise.hlsl"
+#include "matrix-helper.hlsl"
 
 float4 viewFrustumPlanes[6];
 float4 camPos;
@@ -93,11 +94,10 @@ void ChunkRender (uint3 id : SV_DispatchThreadID)
         return;
     }
 
+    uint start = chunk.instanceStartIndex;
+    uint end = start + chunk.instanceCount;
 
-    int start = chunk.instanceStartIndex;
-    int end = start + chunk.instanceCount;
-
-    for (int i = start; i < end; i++) {
+    for (uint i = start; i < end; i++) {
         float4x4 instanceTransform = trsBuffer[i];
         float3 instancePosition = mul(instanceTransform, float4(0, 0, 0, 1)).xyz;
         visibleList.Append(instanceTransform);
@@ -121,68 +121,8 @@ float3 scaleMin;
 float3 scaleMax;
 float steepness;
 
-float4x4 CreateTRSMatrix(float3 translation, float4 quaternionRotation, float3 scale) {
-    // scale matrix
-    float4x4 scaleMatrix = float4x4(
-        scale.x, 0, 0, 0,
-        0, scale.y, 0, 0,
-        0, 0, scale.z, 0,
-        0, 0, 0, 1
-    );
-
-    // rotation mat from quaternion
-    float x2 = quaternionRotation.x + quaternionRotation.x;
-    float y2 = quaternionRotation.y + quaternionRotation.y;
-    float z2 = quaternionRotation.z + quaternionRotation.z;
-    
-    float xx = quaternionRotation.x * x2;
-    float yy = quaternionRotation.y * y2;
-    float zz = quaternionRotation.z * z2;
-    float xy = quaternionRotation.x * y2;
-    float xz = quaternionRotation.x * z2;
-    float yz = quaternionRotation.y * z2;
-    float wx = quaternionRotation.w * x2;
-    float wy = quaternionRotation.w * y2;
-    float wz = quaternionRotation.w * z2;
-
-    float4x4 rotationMatrix = float4x4(
-        1.0f - (yy + zz), xy - wz, xz + wy, 0.0f,
-        xy + wz, 1.0f - (xx + zz), yz - wx, 0.0f,
-        xz - wy, yz + wx, 1.0f - (xx + yy), 0.0f,
-        0.0f, 0.0f, 0.0f, 1.0f
-    );
-
-    // translation matrix - Unity uses colum major
-    float4x4 translationMatrix = float4x4(
-        1, 0, 0, translation.x,
-        0, 1, 0, translation.y,
-        0, 0, 1, translation.z,
-        0, 0, 0, 1
-    );
-
-    return mul(translationMatrix, mul(rotationMatrix, scaleMatrix));
-}
-
-float4 EulerToQuaternion(float pitch, float yaw, float roll) {
-    float pitchRad = radians(pitch);
-    float yawRad = radians(yaw);
-    float rollRad = radians(roll);
-
-    float cy = cos(yawRad * 0.5);
-    float sy = sin(yawRad * 0.5);
-    float cp = cos(pitchRad * 0.5);
-    float sp = sin(pitchRad * 0.5);
-    float cr = cos(rollRad * 0.5);
-    float sr = sin(rollRad * 0.5);
-
-    float4 q;
-    q.x = sr * cp * cy - cr * sp * sy;
-    q.y = cr * sp * cy + sr * cp * sy;
-    q.z = cr * cp * sy - sr * sp * cy;
-    q.w = cr * cp * cy + sr * sp * sy;
-
-    return q;
-}
+float noiseScale;
+float grassThreshhold;
 
 float GetTerrainHeight(float2 uv)
 {
@@ -200,35 +140,23 @@ float2 WorldToTerrainUV(float3 instancePosition, float3 terrainPosition, float t
     return float2(relativePosition.x, relativePosition.y);
 }
 
-//https://gist.github.com/keijiro/24f9d505fac238c9a2982c0d6911d8e3
-uint Hash(uint s)
+float3 CalculateTerrainNormal(float2 uv)
 {
-    s ^= 2747636419u;
-    s *= 2654435769u;
-    s ^= s >> 16;
-    s *= 2654435769u;
-    s ^= s >> 16;
-    s *= 2654435769u;
-    return s;
-}
+    float texelSize = 1.0 / (float) terrainHeightmapResolution;
 
-//https://gist.github.com/keijiro/24f9d505fac238c9a2982c0d6911d8e3
-// returns random number between 0 and 1
-float Random01(uint seed)
-{
-    return float(Hash(seed)) / 4294967295.0; // 2^32-1
-}
+    float heightL = GetTerrainHeight(uv + float2(-texelSize, 0.0));
+    float heightR = GetTerrainHeight(uv + float2(texelSize, 0.0));
+    float heightD = GetTerrainHeight(uv + float2(0.0, -texelSize));
+    float heightU = GetTerrainHeight(uv + float2(0.0, texelSize));
 
-// returns random number between -1 and 1
-float Random11(uint seed)
-{
-    return (Random01(seed) - .5) * 2.;
-}
+    float3 tangentX = float3(2.0 * texelSize, heightR - heightL, 0.0);
+    float3 tangentZ = float3(0.0, heightU - heightD, 2.0 * texelSize);
 
-//https://gist.github.com/keijiro/ee7bc388272548396870
-float nrand(float2 uv)
-{
-    return frac(sin(dot(uv, float2(12.9898, 78.233))) * 43758.5453);
+    return clamp(  //Clamped x axis to minimum 1. to avoid 0 vector to be returned
+        normalize(cross(tangentZ, tangentX)),
+        float3(0., 1., 0.),
+        float3(1., 1., 1.)  
+    );
 }
 
 [numthreads(THREADS_CHUNK_INIT, 1, 1)]
@@ -247,36 +175,60 @@ void InitializeGrassPositions(uint3 id : SV_DispatchThreadID)
     //starting position inside trsBuffer array. Previously set via C# using a list and its count value.
     chunk.instanceStartIndex = startIndex;
   
-    uint baseSeed = Hash(id.x + (uint)(chunkPos.x * 31 + chunkPos.z * 71)); 
-    uint seed = Hash(baseSeed + id.x);
+    
+    uint chunkThreadSeed = SimpleHash(id.x); 
+    uint chunkSeed = SimpleHash(id.x + (uint)(chunkPos.x * 31 + chunkPos.z * 71)); 
+    uint instanceSeed = SimpleHash(chunkSeed + id.x);
+
 
     for (int i = 0; i < instancesPerChunk; i++)
     {
-        float3 instancePos = chunkPos + float3(Random11(seed), 0.0, Random11(seed * 15731u)) * halfChunkSize;
+        float3 instancePos = chunkPos +
+         float3(
+            Random11(instanceSeed),
+            0.0,
+            Random11(instanceSeed * 15731u)
+        ) * halfChunkSize;
+
         float2 uv = WorldToTerrainUV(instancePos, terrainPos, terrainSize.x);  
 
-        if (GetTerrainGrassValue(uv) < .1) continue;
+        float gradientNoise = 1;
+        Unity_GradientNoise_Deterministic_float(uv, (float) instanceSeed * noiseScale, gradientNoise);
+       /* float3 dir = normalize(instancePos - chunkPos);
+        instancePos += dir * (gradientNoise - .5) * 2.;
+        uv = WorldToTerrainUV(instancePos, terrainPos, terrainSize.x);  */
+
+        if (GetTerrainGrassValue(uv) < grassThreshhold) continue;
+
 
         float terrainHeight = GetTerrainHeight(uv) * terrainSize.y * 2.;
         instancePos.y += terrainHeight;
 
         //using another random function to create even more "randomness"
-        float3 scale = lerp(scaleMin, scaleMax, nrand(uv));
-        instancePos.y += scale.z / 2.;
+        float3 scale = lerp(scaleMin, scaleMax, gradientNoise);
 
-        float angle = Random11(seed + i *  15731u) * 360.0;
-        float4 quat =  EulerToQuaternion(angle, 0, 90);
-        float4x4 instanceTransform = CreateTRSMatrix(instancePos, quat, scale);
 
-        //fill buffer at correct index
+        float3 normal = CalculateTerrainNormal(uv);
+        
+        instancePos.y += scale.y  - normal.z / 2.;
+
+        float4 rotationToNormal = FromToRotation(float3(0.0, 1.0, 0.0), normal);
+        float angle = Random11(instanceSeed + i *  15731u) * 360.0;
+        float4 yRotation = EulerToQuaternion(angle, 0, 0.);
+        float4 finalRotation = qmul(rotationToNormal, yRotation); 
+
+      
+        float4x4 instanceTransform = CreateTRSMatrix(instancePos, finalRotation, scale);
+
+        //set buffer at offset index
         trsBuffer[startIndex + i] = instanceTransform;
 
         chunk.instanceCount++;
 
-        seed += i;
+        instanceSeed += i;
     }
 
-    //Set chunk position to average of its instances y height
+    //Set chunk position to average of its instances y pos
     float sumY = 0.0;
     for (int j = 0; j < chunk.instanceCount; j++)
     {

@@ -71,9 +71,12 @@ public class GrassInstancerIndirect : MonoBehaviour
     [SerializeField] private Terrain _terrain;
     private TerrainData _terrainData;
     private int _kernelInitializePositions;
-    [SerializeField] private readonly int _threadsChunkInit = 64;
+    [SerializeField] private int _threadsChunkInit = 1024;
     private ComputeBuffer _instanceCounterBuffer;
 
+
+    [SerializeField][Range(0f, 1f)] private float _grassThreshhold = 0.5f;
+    [SerializeField] private float _noiseScale = 0.001f;
     private void Start()
     {
         _cam = Camera.main;
@@ -81,6 +84,7 @@ public class GrassInstancerIndirect : MonoBehaviour
 
         InitializeGrassChunkPositions();
         InitializeGrassInstancesPerChunk();
+
     }
 
     private void Update()
@@ -92,6 +96,7 @@ public class GrassInstancerIndirect : MonoBehaviour
             return;
         }
 
+        _visiblityComputeShader.SetFloat("depthBias", _depthBias);
         RenderInstances();
     }
 
@@ -230,6 +235,9 @@ public class GrassInstancerIndirect : MonoBehaviour
         _kernelChunkRender = _visiblityComputeShader.FindKernel("ChunkRender");
         _kernelInitializePositions = _visiblityComputeShader.FindKernel("InitializeGrassPositions");
 
+        _visiblityComputeShader.SetFloat("grassThreshhold", _grassThreshhold);
+        _visiblityComputeShader.SetFloat("noiseScale", _noiseScale);
+
         _visiblityComputeShader.SetInt("numChunks", _numChunks);
         _visiblityComputeShader.SetInt("chunkSize", _chunkSize);
         _visiblityComputeShader.SetInt("instancesPerChunk", instancesPerChunk);
@@ -244,7 +252,7 @@ public class GrassInstancerIndirect : MonoBehaviour
         _visiblityComputeShader.SetInt("terrainHeightmapResolution", _terrainData.heightmapResolution);
         _visiblityComputeShader.SetTexture(_kernelInitializePositions, "Heightmap", _terrainData.heightmapTexture);
         _visiblityComputeShader.SetTexture(_kernelInitializePositions, "Splatmap", _terrainData.alphamapTextures[0]);
-
+       
         _visiblityComputeShader.SetFloat("depthBias", _depthBias);
         _visiblityComputeShader.SetVectorArray("viewFrustumPlanes", GetViewFrustumPlaneNormals());
 
@@ -278,75 +286,7 @@ public class GrassInstancerIndirect : MonoBehaviour
         _visiblityComputeShader.SetBuffer(_kernelChunkRender, "visibleList", _visibleBuffer);
         _material.SetBuffer("visibleList", _visibleBuffer);
 
-        /*
-                _trsList.Clear();
 
-                // Compute Shader ausführen
-
-                for (int c = 0; c < _numChunks; c++)
-                {
-                    NativeArray<RaycastHit> chunkResults = new NativeArray<RaycastHit>(instancesPerChunk, Allocator.TempJob);
-                    NativeArray<RaycastCommand> chunkCommands = new NativeArray<RaycastCommand>(instancesPerChunk, Allocator.TempJob);
-
-                    for (int i = 0; i < instancesPerChunk; i++)
-                    {
-                        chunkCommands[i] = new RaycastCommand(GetRandomRayPositionForChunk(_chunks[c]), dir, parameters);
-                    }
-
-                    JobHandle handle = RaycastCommand.ScheduleBatch(chunkCommands, chunkResults, 16, default);
-                    handle.Complete();
-
-                    for (int i = 0; i < chunkResults.Length; i++)
-                    {
-                        RaycastHit hit = chunkResults[i];
-                        //   if (IsToSteep(hit.normal, dir)) continue;
-
-                        Quaternion rotation = GetRotationFromNormal(hit.normal);
-                        Vector3 scale = GetRandomScale();
-                        Vector3 targetPos = hit.point;
-
-
-                        //     if (targetPos.y + UnityEngine.Random.value < 5f) continue;
-
-
-                        targetPos.y += scale.z / 2f; //keep or remove, depends on your mesh scaling
-                        _trsList.Add(Matrix4x4.TRS(targetPos, rotation, scale));
-
-                        _chunks[c].instanceCount++;
-
-                        _trueInstanceCount++;
-                    }
-
-                    int lastIndex = _trsList.Count;
-                    int firstIndex = lastIndex - _chunks[c].instanceCount;
-                    _chunks[c].instanceStartIndex = firstIndex;
-
-                    //Adjusting chunk y position to the average of all instances inside it
-                    float sumY = 0f;
-
-                    int start = _chunks[c].instanceStartIndex;
-                    int end = start + _chunks[c].instanceCount;
-                    for (int i = start; i < end; i++)
-                    {
-                        sumY += _trsList[i].GetColumn(3).y; //y coord
-                    }
-                    int count = _chunks[c].instanceCount;
-                    float averageY = count > 0 ? sumY / count : _chunks[c].position.y;
-                    _chunks[c].position.y = averageY;
-
-                    chunkResults.Dispose();
-                    chunkCommands.Dispose();
-                }
-
-                UnityEngine.Debug.LogError("pos: " + _chunks[0].position + " => start: " + _chunks[0].instanceStartIndex + " => count: " + _chunks[0].instanceCount);
-
-                UnityEngine.Debug.LogError(_trsList[0]);
-
-
-                //     _trsBuffer = new ComputeBuffer(_trueInstanceCount, 4 * 4 * sizeof(float));
-                //    _trsBuffer.SetData(_trsList.ToArray());
-
-                _trsList.Clear();*/
     }
 
     private Vector4[] GetViewFrustumPlaneNormals()
