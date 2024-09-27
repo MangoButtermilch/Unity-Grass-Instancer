@@ -50,7 +50,6 @@ public class GrassInstancerIndirect : MonoBehaviour
     private ComputeBuffer _argsBuffer;
     private ComputeBuffer _trsBuffer;
     private ComputeBuffer _readBackArgsBuffer;
-    private List<Matrix4x4> _trsList = new List<Matrix4x4>();
 
     private Bounds _renderBounds;
     private Camera _cam;
@@ -70,6 +69,7 @@ public class GrassInstancerIndirect : MonoBehaviour
     [Header("Terrain")]
     [SerializeField] private Terrain _terrain;
     private TerrainData _terrainData;
+    private int _kernelInitializeChunks;
     private int _kernelInitializePositions;
     [SerializeField] private int _threadsChunkInit = 1024;
     private ComputeBuffer _instanceCounterBuffer;
@@ -233,6 +233,7 @@ public class GrassInstancerIndirect : MonoBehaviour
         print("instances per chunk : " + instancesPerChunk);
 
         _kernelChunkRender = _visiblityComputeShader.FindKernel("ChunkRender");
+        _kernelInitializeChunks = _visiblityComputeShader.FindKernel("InitializeChunks");
         _kernelInitializePositions = _visiblityComputeShader.FindKernel("InitializeGrassPositions");
 
         _visiblityComputeShader.SetFloat("grassThreshhold", _grassThreshhold);
@@ -252,12 +253,14 @@ public class GrassInstancerIndirect : MonoBehaviour
         _visiblityComputeShader.SetInt("terrainHeightmapResolution", _terrainData.heightmapResolution);
         _visiblityComputeShader.SetTexture(_kernelInitializePositions, "Heightmap", _terrainData.heightmapTexture);
         _visiblityComputeShader.SetTexture(_kernelInitializePositions, "Splatmap", _terrainData.alphamapTextures[0]);
-       
+
+        _visiblityComputeShader.SetTexture(_kernelInitializeChunks, "Heightmap", _terrainData.heightmapTexture);
+        _visiblityComputeShader.SetTexture(_kernelInitializeChunks, "Splatmap", _terrainData.alphamapTextures[0]);
+
         _visiblityComputeShader.SetFloat("depthBias", _depthBias);
         _visiblityComputeShader.SetVectorArray("viewFrustumPlanes", GetViewFrustumPlaneNormals());
 
 
-        _trsBuffer = new ComputeBuffer(_instances, 4 * 4 * sizeof(float));
         _argsBuffer = new ComputeBuffer(1, 5 * sizeof(uint), ComputeBufferType.IndirectArguments);
         _readBackArgsBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Raw);
 
@@ -268,24 +271,32 @@ public class GrassInstancerIndirect : MonoBehaviour
         _chunkBuffer = new ComputeBuffer(_numChunks, 3 * sizeof(float) + 2 * sizeof(int));
         _chunkBuffer.SetData(_chunks);
 
+        _visiblityComputeShader.SetBuffer(_kernelInitializeChunks, "chunkBuffer", _chunkBuffer);
+        _visiblityComputeShader.SetBuffer(_kernelInitializeChunks, "instanceCounter", _instanceCounterBuffer);
 
-        _visiblityComputeShader.SetBuffer(_kernelInitializePositions, "trsBuffer", _trsBuffer);
         _visiblityComputeShader.SetBuffer(_kernelInitializePositions, "instanceCounter", _instanceCounterBuffer);
         _visiblityComputeShader.SetBuffer(_kernelInitializePositions, "chunkBuffer", _chunkBuffer);
 
-        _visiblityComputeShader.SetBuffer(_kernelChunkRender, "trsBuffer", _trsBuffer);
-        _visiblityComputeShader.SetBuffer(_kernelChunkRender, "chunkBuffer", _chunkBuffer);
 
-        _visiblityComputeShader.Dispatch(_kernelInitializePositions, Mathf.CeilToInt(_numChunks / _threadsChunkInit), 1, 1);
+        _visiblityComputeShader.Dispatch(_kernelInitializeChunks, Mathf.CeilToInt(_numChunks / _threadsChunkInit), 1, 1);
 
         int[] cb = new int[1];
         _instanceCounterBuffer.GetData(cb);
         _trueInstanceCount = cb[0];
 
+        _trsBuffer = new ComputeBuffer(_trueInstanceCount, sizeof(float) * 4 * 4);
+        _visiblityComputeShader.SetBuffer(_kernelInitializePositions, "trsBuffer", _trsBuffer);
+
+        _visiblityComputeShader.Dispatch(_kernelInitializePositions, Mathf.CeilToInt(_numChunks / _threadsChunkInit), 1, 1);
+      
         _visibleBuffer = new ComputeBuffer(_trueInstanceCount, sizeof(float) * 4 * 4, ComputeBufferType.Append);
         _visiblityComputeShader.SetBuffer(_kernelChunkRender, "visibleList", _visibleBuffer);
         _material.SetBuffer("visibleList", _visibleBuffer);
+        
+        _visiblityComputeShader.SetBuffer(_kernelChunkRender, "trsBuffer", _trsBuffer);
+        _visiblityComputeShader.SetBuffer(_kernelChunkRender, "chunkBuffer", _chunkBuffer);
 
+        _instanceCounterBuffer?.Release();
 
     }
 
