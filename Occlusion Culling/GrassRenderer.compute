@@ -1,0 +1,270 @@
+#pragma kernel ChunkRender
+#pragma kernel InitChunkInstanceCount
+#pragma kernel InitInstanceTransforms
+
+#define THREADS_CHUNK_RENDER 512
+#define THREADS_CHUNK_INIT 512
+
+#include "noise.hlsl"
+#include "quaternion-matrix-utils.hlsl"
+
+float4 viewFrustumPlanes[6];
+float4 camPos;
+float maxViewDistance;
+float depthBias;
+
+float4x4 vpMatrix;
+
+struct Chunk {
+    float3 position;
+    uint instanceStartIndex;
+    uint instanceCount;
+};
+
+int chunkSize;
+int numChunks;
+
+RWStructuredBuffer<Chunk> chunkBuffer;
+RWStructuredBuffer<float4x4> trsBuffer;
+AppendStructuredBuffer<float4x4> visibleList; 
+
+Texture2D<float4> _DepthTexture;
+SamplerState sampler_DepthTexture;
+
+
+float planeDistance(float4 plane, float3 p) {
+    return dot(plane.xyz, p) + plane.w;
+} 
+
+bool isInFrontOfPlane(float4 plane, float3 p) {
+    return planeDistance(plane, p) > 0;
+}
+
+bool isChunkInFrustum(float3 chunkPosition) {
+    float halfSize = chunkSize * 0.5;
+    float3 corners[8] = {
+        chunkPosition + float3(halfSize, halfSize, halfSize),  
+        chunkPosition + float3(-halfSize, halfSize, halfSize),  
+        chunkPosition + float3(halfSize, halfSize, -halfSize), 
+        chunkPosition + float3(-halfSize, halfSize, -halfSize), 
+        chunkPosition + float3(halfSize, -halfSize, halfSize), 
+        chunkPosition + float3(-halfSize, -halfSize, halfSize),
+        chunkPosition + float3(halfSize, -halfSize, -halfSize), 
+        chunkPosition + float3(-halfSize, -halfSize, -halfSize) 
+    };
+
+     for (int i = 0; i < 8; i++) { 
+        bool isInside = true;
+        for (int j = 0; j < 6; j++) {
+            if (!isInFrontOfPlane(viewFrustumPlanes[j], corners[i])) {
+                isInside = false;
+                break;
+            }
+        }
+        if (isInside) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool isChunkOccluded(float3 chunkPosition) {
+    float4 projectedPos = mul(vpMatrix, float4(chunkPosition, 1.0f));
+    float2 projectedUV = (projectedPos.xy / projectedPos.w + 1.0f) * 0.5; 
+    
+    float sceneDepth = _DepthTexture.SampleLevel(sampler_DepthTexture, projectedUV, 0).r;
+    float chunkDepth = (projectedPos.z / projectedPos.w);
+
+    return chunkDepth < sceneDepth - depthBias;
+}
+
+[numthreads(THREADS_CHUNK_RENDER,1,1)]
+void ChunkRender (uint3 id : SV_DispatchThreadID)
+{
+    Chunk chunk = chunkBuffer[id.x];
+
+    if(chunk.instanceCount == 0) return;
+
+    //Order is important here for  performance
+    if (distance(camPos.xyz, chunk.position) > maxViewDistance ||
+        !isChunkInFrustum(chunk.position) ||
+        isChunkOccluded(chunk.position))
+    {
+        return;
+    }
+
+    uint start = chunk.instanceStartIndex;
+    uint end = start + chunk.instanceCount;
+
+    for (uint i = start; i < end; i++) {
+      visibleList.Append(trsBuffer[i]);
+    }
+}
+
+
+int instancesPerChunk;
+int terrainHeightmapResolution;
+
+Texture2D<float4> Heightmap;
+SamplerState sampler_Heightmap;
+
+Texture2D<float4> Splatmap;
+SamplerState sampler_Splatmap;
+
+RWStructuredBuffer<int> instanceCounter;
+float3 terrainSize;
+float3 terrainPos;
+float3 scaleMin;
+float3 scaleMax;
+
+float scaleNoiseScale;
+float grassThreshhold;
+
+float GetTerrainHeight(float2 uv)
+{
+    return Heightmap.SampleLevel(sampler_Heightmap, uv, 0).r;
+}
+
+float GetTerrainGrassValue(float2 uv)
+{
+    return Splatmap.SampleLevel(sampler_Splatmap, uv, 0).r;
+}
+
+float2 WorldToTerrainUV(float3 instancePosition, float3 terrainPosition, float terrainSize)
+{
+    float2 relativePosition = (instancePosition.xz - terrainPosition.xz) / terrainSize;
+    return float2(relativePosition.x, relativePosition.y);
+}
+
+float3 CalculateTerrainNormal(float2 uv)
+{
+    float texelSize = 1.0 / (float) terrainHeightmapResolution;
+
+    float heightL = GetTerrainHeight(uv + float2(-texelSize, 0.0));
+    float heightR = GetTerrainHeight(uv + float2(texelSize, 0.0));
+    float heightD = GetTerrainHeight(uv + float2(0.0, -texelSize));
+    float heightU = GetTerrainHeight(uv + float2(0.0, texelSize));
+
+    float3 tangentX = float3(2.0 * texelSize, heightR - heightL, 0.0);
+    float3 tangentZ = float3(0.0, heightU - heightD, 2.0 * texelSize);
+
+    return clamp(  //Clamped x axis to minimum 1. to avoid 0 vector to be returned
+        normalize(cross(tangentZ, tangentX)),
+        float3(0., 1., 0.),
+        float3(1., 1., 1.)  
+    );
+}
+
+[numthreads(THREADS_CHUNK_INIT, 1, 1)]
+void InitChunkInstanceCount(uint3 id : SV_DispatchThreadID)
+{
+    Chunk chunk = chunkBuffer[id.x];
+    chunk.instanceCount = 0;
+    chunk.instanceStartIndex = 0;
+
+    float3 chunkPos = chunk.position;
+    float halfChunkSize = chunkSize / 2.0;
+    
+    uint counterSeed = 0;
+    InterlockedAdd(instanceCounter[0], 0, counterSeed);
+
+    uint chunkThreadSeed = SimpleHash(id.x); 
+    uint chunkSeed = SimpleHash(id.x + (uint)(chunkPos.x * 31 + chunkPos.z * 71)); 
+    uint instanceSeed = SimpleHash(chunkSeed + id.x);
+
+
+    for (int i = 0; i < instancesPerChunk; i++)
+    {
+        float3 instancePos = chunkPos + float3(
+            Random11(instanceSeed),
+            0.0,
+            Random11(instanceSeed * 15731u)
+        ) * halfChunkSize;
+
+        float2 uv = WorldToTerrainUV(instancePos, terrainPos, terrainSize.x);  
+
+        if (GetTerrainGrassValue(uv) < grassThreshhold) continue;
+
+        chunk.instanceCount++;
+        instanceSeed += i;
+    }
+
+    //will contain cvalue of instanceCounter[0] before atomic add
+    uint startIndex;
+    //atomic increase of global instance counter to not interfere with other threads whe nusing the instanceCounter
+    InterlockedAdd(instanceCounter[0], chunk.instanceCount, startIndex);
+    //starting position inside trsBuffer array. Previously set via C# using a list and its count value.
+    chunk.instanceStartIndex = startIndex + 1;
+  
+    chunkBuffer[id.x] = chunk;
+}
+
+
+[numthreads(THREADS_CHUNK_INIT, 1, 1)]
+void InitInstanceTransforms(uint3 id : SV_DispatchThreadID)
+{
+    Chunk chunk = chunkBuffer[id.x];
+
+    float3 chunkPos = chunk.position;
+    float halfChunkSize = chunkSize / 2.0;
+
+    uint chunkThreadSeed = SimpleHash(id.x); 
+    uint chunkSeed = SimpleHash(id.x + (uint)(chunkPos.x * 31 + chunkPos.z * 71)); 
+    uint instanceSeed = SimpleHash(chunkSeed + id.x);
+
+    int count = chunk.instanceCount;
+    int startIndex = chunk.instanceStartIndex;
+    
+    for (int i = 0; i < count; i++)
+    {
+        float3 instancePos = chunkPos +
+         float3(
+            Random11(instanceSeed),
+            0.0,
+            Random11(instanceSeed * 15731u)
+        ) * halfChunkSize;
+
+        float2 uv = WorldToTerrainUV(instancePos, terrainPos, terrainSize.x);  
+
+        float gradientNoise = 0;
+        Unity_GradientNoise_Deterministic_float(uv, (float) instanceSeed * scaleNoiseScale, gradientNoise);
+        
+
+     
+        float terrainHeight = GetTerrainHeight(uv) * terrainSize.y * 2.;
+        instancePos.y += terrainHeight;
+
+        //using another random function to create even more "randomness"
+        float3 scale = lerp(scaleMin, scaleMax, gradientNoise);
+
+
+        float3 normal = CalculateTerrainNormal(uv);
+        
+        instancePos.y += scale.y  - normal.z / 2.;
+
+        float4 rotationToNormal = FromToRotation(float3(0.0, 1.0, 0.0), normal);
+        float angle = Random11(instanceSeed + i *  15731u) * 360.0;
+        float4 yRotation = EulerToQuaternion(angle, 0, 0.);
+        float4 finalRotation = qmul(rotationToNormal, yRotation); 
+
+        
+        float4x4 instanceTransform = CreateTRSMatrix(instancePos, finalRotation, scale);
+
+        //set buffer at offset index
+        trsBuffer[startIndex + i] = instanceTransform; 
+        instanceSeed += i;
+    }
+
+    //Set chunk position to average of its instances y pos
+    float sumY = 0.0;
+    for (int j = 0; j < chunk.instanceCount; j++)
+    {
+        float4x4 instanceTransform = trsBuffer[startIndex + j];
+        sumY += instanceTransform[1][3];
+    }
+    float averageY = sumY / chunk.instanceCount;
+    chunk.position.y = averageY;
+
+    chunkBuffer[id.x] = chunk;
+}

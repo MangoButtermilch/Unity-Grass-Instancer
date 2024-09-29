@@ -1,5 +1,5 @@
-#ifndef MATRIX_HELPER
-#define MATRIX_HELPER
+#ifndef QUAT_MAT_UTILS
+#define QUAT_MAT_UTILS
 
 //Creates TRS matrix. Unity uses column major 
 float4x4 CreateTRSMatrix(float3 translation, float4 quaternionRotation, float3 scale) {
@@ -77,7 +77,6 @@ float4 FromToRotation(float3 from, float3 to)
 }
 
 
-// https://gist.github.com/mattatz/40a91588d5fb38240403f198a938a593
 // Quaternion multiplication
 // http://mathworld.wolfram.com/Quaternion.html
 float4 qmul(float4 q1, float4 q2)
