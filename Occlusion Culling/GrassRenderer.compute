@@ -9,7 +9,7 @@
 #include "quaternion-matrix-utils.hlsl"
 
 float4 viewFrustumPlanes[6];
-float4 camPos;
+float3 camPos;
 float maxViewDistance;
 float depthBias;
 
@@ -53,7 +53,7 @@ bool isChunkInFrustum(float3 chunkPosition) {
         chunkPosition + float3(-halfSize, -halfSize, -halfSize) 
     };
 
-     for (int i = 0; i < 8; i++) { 
+    for (int i = 0; i < 8; i++) { 
         bool isInside = true;
         for (int j = 0; j < 6; j++) {
             if (!isInFrontOfPlane(viewFrustumPlanes[j], corners[i])) {
@@ -70,8 +70,8 @@ bool isChunkInFrustum(float3 chunkPosition) {
 }
 
 bool isChunkOccluded(float3 chunkPosition) {
-    float4 projectedPos = mul(vpMatrix, float4(chunkPosition, 1.0f));
-    float2 projectedUV = (projectedPos.xy / projectedPos.w + 1.0f) * 0.5; 
+    float4 projectedPos = mul(vpMatrix, float4(chunkPosition, 1.0));
+    float2 projectedUV = (projectedPos.xy / projectedPos.w + 1.0) * 0.5; 
     
     float sceneDepth = _DepthTexture.SampleLevel(sampler_DepthTexture, projectedUV, 0).r;
     float chunkDepth = (projectedPos.z / projectedPos.w);
@@ -86,10 +86,12 @@ void ChunkRender (uint3 id : SV_DispatchThreadID)
 
     if(chunk.instanceCount == 0) return;
 
+    float3 chunkPos = chunk.position;
+
     //Order is important here for  performance
-    if (distance(camPos.xyz, chunk.position) > maxViewDistance ||
-        !isChunkInFrustum(chunk.position) ||
-        isChunkOccluded(chunk.position))
+    if (distance(camPos, chunkPos) > maxViewDistance ||
+        !isChunkInFrustum(chunkPos) ||
+        isChunkOccluded(chunkPos))
     {
         return;
     }
@@ -103,7 +105,7 @@ void ChunkRender (uint3 id : SV_DispatchThreadID)
 }
 
 
-int instancesPerChunk;
+uint instancesPerChunk;
 int terrainHeightmapResolution;
 
 Texture2D<float4> Heightmap;
@@ -123,7 +125,7 @@ float grassThreshhold;
 
 float GetTerrainHeight(float2 uv)
 {
-    return Heightmap.SampleLevel(sampler_Heightmap, uv, 0).r;
+    return Heightmap.SampleLevel(sampler_Heightmap, uv, 0).r * terrainSize.y * 2.;
 }
 
 float GetTerrainGrassValue(float2 uv)
@@ -131,9 +133,9 @@ float GetTerrainGrassValue(float2 uv)
     return Splatmap.SampleLevel(sampler_Splatmap, uv, 0).r;
 }
 
-float2 WorldToTerrainUV(float3 instancePosition, float3 terrainPosition, float terrainSize)
+float2 WorldToTerrainUV(float3 instancePosition)
 {
-    float2 relativePosition = (instancePosition.xz - terrainPosition.xz) / terrainSize;
+    float2 relativePosition = (instancePosition.xz - terrainPos.xz) / terrainSize.x;
     return float2(relativePosition.x, relativePosition.y);
 }
 
@@ -156,6 +158,22 @@ float3 CalculateTerrainNormal(float2 uv)
     );
 }
 
+float3 GenerateInstancePos(float3 chunkPos, uint instanceSeed) {
+
+    float halfChunkSize = chunkSize * 0.5;
+
+    float randomX = Random11(instanceSeed);
+    float randomZ = Random11(instanceSeed * 15731u);
+
+    float3 instancePos = chunkPos + 
+          float3(randomX, 0, randomZ) * halfChunkSize;//Y Coord will be set after getting terrain height
+
+
+    return instancePos;
+}
+
+
+
 [numthreads(THREADS_CHUNK_INIT, 1, 1)]
 void InitChunkInstanceCount(uint3 id : SV_DispatchThreadID)
 {
@@ -164,30 +182,17 @@ void InitChunkInstanceCount(uint3 id : SV_DispatchThreadID)
     chunk.instanceStartIndex = 0;
 
     float3 chunkPos = chunk.position;
-    float halfChunkSize = chunkSize / 2.0;
     
-    uint counterSeed = 0;
-    InterlockedAdd(instanceCounter[0], 0, counterSeed);
-
-    uint chunkThreadSeed = SimpleHash(id.x); 
-    uint chunkSeed = SimpleHash(id.x + (uint)(chunkPos.x * 31 + chunkPos.z * 71)); 
-    uint instanceSeed = SimpleHash(chunkSeed + id.x);
-
-
-    for (int i = 0; i < instancesPerChunk; i++)
-    {
-        float3 instancePos = chunkPos + float3(
-            Random11(instanceSeed),
-            0.0,
-            Random11(instanceSeed * 15731u)
-        ) * halfChunkSize;
-
-        float2 uv = WorldToTerrainUV(instancePos, terrainPos, terrainSize.x);  
-
+    uint instanceSeed = 0;
+    for (uint i = 0; i < instancesPerChunk; i++)
+    {   
+        //important to increase the instance seed BEFORE "continue" is used
+        instanceSeed = SimpleHash(i);
+        float3 instancePos = GenerateInstancePos(chunkPos, instanceSeed);
+        float2 uv = WorldToTerrainUV(instancePos);  
         if (GetTerrainGrassValue(uv) < grassThreshhold) continue;
 
         chunk.instanceCount++;
-        instanceSeed += i;
     }
 
     //will contain cvalue of instanceCounter[0] before atomic add
@@ -195,7 +200,7 @@ void InitChunkInstanceCount(uint3 id : SV_DispatchThreadID)
     //atomic increase of global instance counter to not interfere with other threads whe nusing the instanceCounter
     InterlockedAdd(instanceCounter[0], chunk.instanceCount, startIndex);
     //starting position inside trsBuffer array. Previously set via C# using a list and its count value.
-    chunk.instanceStartIndex = startIndex + 1;
+    chunk.instanceStartIndex = startIndex; 
   
     chunkBuffer[id.x] = chunk;
 }
@@ -207,64 +212,47 @@ void InitInstanceTransforms(uint3 id : SV_DispatchThreadID)
     Chunk chunk = chunkBuffer[id.x];
 
     float3 chunkPos = chunk.position;
-    float halfChunkSize = chunkSize / 2.0;
-
-    uint chunkThreadSeed = SimpleHash(id.x); 
-    uint chunkSeed = SimpleHash(id.x + (uint)(chunkPos.x * 31 + chunkPos.z * 71)); 
-    uint instanceSeed = SimpleHash(chunkSeed + id.x);
-
-    int count = chunk.instanceCount;
-    int startIndex = chunk.instanceStartIndex;
     
-    for (int i = 0; i < count; i++)
+    uint instanceSeed = 0;
+    
+    uint count = chunk.instanceCount;
+    uint startIndex = chunk.instanceStartIndex;
+    
+    for (uint i = 0; i < count; i++)
     {
-        float3 instancePos = chunkPos +
-         float3(
-            Random11(instanceSeed),
-            0.0,
-            Random11(instanceSeed * 15731u)
-        ) * halfChunkSize;
+        //These 4 lines have to match exactly the ones in InitChunkInstanceCount in order to create the same instance positions and skip wrong ones.
+        instanceSeed = SimpleHash(i);
+        float3 instancePos = GenerateInstancePos(chunkPos, instanceSeed);
+        float2 uv = WorldToTerrainUV(instancePos);  
+        if (GetTerrainGrassValue(uv) < grassThreshhold) continue;
 
-        float2 uv = WorldToTerrainUV(instancePos, terrainPos, terrainSize.x);  
+        instancePos.y = GetTerrainHeight(uv);
 
         float gradientNoise = 0;
         Unity_GradientNoise_Deterministic_float(uv, (float) instanceSeed * scaleNoiseScale, gradientNoise);
-        
-
      
-        float terrainHeight = GetTerrainHeight(uv) * terrainSize.y * 2.;
-        instancePos.y += terrainHeight;
 
         //using another random function to create even more "randomness"
         float3 scale = lerp(scaleMin, scaleMax, gradientNoise);
 
-
         float3 normal = CalculateTerrainNormal(uv);
         
-        instancePos.y += scale.y  - normal.z / 2.;
+        instancePos.y += scale.y - normal.z / 2.;
 
         float4 rotationToNormal = FromToRotation(float3(0.0, 1.0, 0.0), normal);
         float angle = Random11(instanceSeed + i *  15731u) * 360.0;
         float4 yRotation = EulerToQuaternion(angle, 0, 0.);
         float4 finalRotation = qmul(rotationToNormal, yRotation); 
-
         
         float4x4 instanceTransform = CreateTRSMatrix(instancePos, finalRotation, scale);
 
         //set buffer at offset index
         trsBuffer[startIndex + i] = instanceTransform; 
-        instanceSeed += i;
     }
 
-    //Set chunk position to average of its instances y pos
-    float sumY = 0.0;
-    for (int j = 0; j < chunk.instanceCount; j++)
-    {
-        float4x4 instanceTransform = trsBuffer[startIndex + j];
-        sumY += instanceTransform[1][3];
-    }
-    float averageY = sumY / chunk.instanceCount;
-    chunk.position.y = averageY;
+    //Set chunk position to terrain height
+    float2 chunkUV = WorldToTerrainUV(chunkPos);
+    chunk.position.y = GetTerrainHeight(chunkUV);
 
     chunkBuffer[id.x] = chunk;
 }

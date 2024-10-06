@@ -10,13 +10,13 @@ using Unity.Mathematics;
 struct Chunk
 {
     public Vector3 position; //World position of chunk
-    public int instanceStartIndex; //Start index inside trsBuffer
-    public int instanceCount; //End index inside trsBuffer
+    public uint instanceStartIndex; //Start index inside trsBuffer
+    public uint instanceCount; //End index inside trsBuffer
 
     public Chunk(Vector3 p)
     {
         position = p;
-        instanceStartIndex = -1;
+        instanceStartIndex = 0;
         instanceCount = 0;
     }
 };
@@ -53,11 +53,14 @@ public class GrassInstancerIndirect : MonoBehaviour
     private ComputeBuffer _instanceCounterBuffer; // Needed to atomically count instances inside shader
     private Bounds _renderBounds;
     private Camera _cam;
+    [SerializeField] private float _texNoiseLayer1 = 0.04f;
+    [SerializeField] private float _texNoiseLayer2 = 4.41f;
     [Header("Chunks")]
     [SerializeField] private int _chunkSize = 4;
     private Chunk[] _chunks;
     private int _numChunks;
     [SerializeField] private uint _threadsChunkRender = 512;
+    [SerializeField] private int _threadsChunkInit = 512;
     [Header("Occlusion")]
     private Texture _cameraDepthTexture;
     [SerializeField][Range(0.0001f, 0.1f)] private float _depthBias = 0.001f;
@@ -65,7 +68,6 @@ public class GrassInstancerIndirect : MonoBehaviour
     [SerializeField] private Terrain _terrain;
     private TerrainData _terrainData;
     [SerializeField][Range(0f, 1f)] private float _grassThreshhold = 0.5f;
-    [SerializeField] private int _threadsChunkInit = 512;
 
     private void Start()
     {
@@ -75,7 +77,8 @@ public class GrassInstancerIndirect : MonoBehaviour
         _terrainData = _terrain.terrainData;
 
         _trueInstanceCount = 0;
-        _renderBounds = new Bounds(transform.position, Vector3.one * _range.x);
+        _renderBounds = new Bounds(transform.position, _terrainData.size);
+
 
         InitializeGrassChunkPositions();
         InitializeGrassChunkInstances();
@@ -91,6 +94,9 @@ public class GrassInstancerIndirect : MonoBehaviour
         }
 
         _grassComputeShader.SetFloat("depthBias", _depthBias);
+        _material.SetFloat("_NoiseScale", _texNoiseLayer1);
+        _material.SetFloat("_NoiseScale2", _texNoiseLayer2);
+
         RenderInstances();
     }
 
@@ -115,6 +121,15 @@ public class GrassInstancerIndirect : MonoBehaviour
         if (!_drawGizmos) return;
         Gizmos.color = Color.red;
         Gizmos.DrawWireCube(transform.position, new Vector3(_range.x * 2, 5, _range.y * 2));
+
+        if (_chunks == null) return;
+
+        Gizmos.color = Color.cyan;
+        for (int i = 0; i < _chunks.Length; i++)
+        {
+            if (Vector3.Distance(_chunks[i].position, _cam.transform.position) > 300) continue;
+            Gizmos.DrawWireCube(_chunks[i].position, _chunkSize * Vector3.one);
+        }
     }
 
 
@@ -287,6 +302,11 @@ public class GrassInstancerIndirect : MonoBehaviour
         _grassComputeShader.SetBuffer(_kernelChunkRender, "chunkBuffer", _chunkBuffer);
 
         _instanceCounterBuffer?.Release();
+
+        if (!_drawGizmos)
+        {
+            _chunks = null;
+        }
 
     }
 
