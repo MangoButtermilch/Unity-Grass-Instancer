@@ -92,7 +92,8 @@ Shader "Unlit/GrassBlillboardIndirect"
                 float3 staticWorldPos: TEXCOORD4;
             };
 
-            StructuredBuffer<float4x4> visibleList;
+            StructuredBuffer<uint> visibleList;
+            StructuredBuffer<float4x4> trsBuffer;
             float4 _PrimaryCol, _SecondaryCol, _AOColor, _TipColor;
             float _Scale;
             float _MeshDeformationLimitLow;
@@ -155,8 +156,10 @@ Shader "Unlit/GrassBlillboardIndirect"
             {
                 VertexOutput o;
 
+                uint index = visibleList[instanceID];
+                float4x4 mat = trsBuffer[index];
                 //applying transformation matrix
-                float3 positionWorldSpace = mul(visibleList[instanceID], float4(v.vertex.xyz, 1));
+                float3 positionWorldSpace = mul(mat, float4(v.vertex.xyz, 1));
                 o.staticWorldPos = positionWorldSpace;
 
                 //move world UVs by time
@@ -284,7 +287,8 @@ Shader "Unlit/GrassBlillboardIndirect"
             };
 
            
-            StructuredBuffer<float4x4> visibleList;
+            StructuredBuffer<uint> visibleList;
+            StructuredBuffer<float4x4> trsBuffer;
             float4 _PrimaryCol, _SecondaryCol, _AOColor, _TipColor;
             float _Scale;
             float _MeshDeformationLimitLow;
@@ -330,8 +334,10 @@ Shader "Unlit/GrassBlillboardIndirect"
             {
                 VertexOutput o;
 
+                uint index = visibleList[instanceID];
+                float4x4 mat = trsBuffer[index];
                 //applying transformation matrix
-                float3 positionWorldSpace = mul(visibleList[instanceID], float4(v.vertex.xyz, 1));
+                float3 positionWorldSpace = mul(mat, float4(v.vertex.xyz, 1));
                 o.staticWorldPos = positionWorldSpace;
 
                 //move world UVs by time

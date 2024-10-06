@@ -5,7 +5,6 @@ using Unity.Jobs;
 using System;
 using UnityEngine.Rendering;
 using System.Diagnostics;
-using Unity.Mathematics;
 
 struct Chunk
 {
@@ -58,7 +57,7 @@ public class GrassInstancerIndirect : MonoBehaviour
     [Header("Chunks")]
     [SerializeField] private int _chunkSize = 4;
     private Chunk[] _chunks;
-    private int _numChunks;
+     [SerializeField] private int _numChunks;
     [SerializeField] private uint _threadsChunkRender = 512;
     [SerializeField] private int _threadsChunkInit = 512;
     [Header("Occlusion")]
@@ -80,8 +79,14 @@ public class GrassInstancerIndirect : MonoBehaviour
         _renderBounds = new Bounds(transform.position, _terrainData.size);
 
 
+        Stopwatch sw = new Stopwatch();
+        sw.Start();
+
         InitializeGrassChunkPositions();
         InitializeGrassChunkInstances();
+
+        sw.Stop();
+        print(sw.ElapsedMilliseconds);
     }
 
     private void Update()
@@ -96,8 +101,12 @@ public class GrassInstancerIndirect : MonoBehaviour
         _grassComputeShader.SetFloat("depthBias", _depthBias);
         _material.SetFloat("_NoiseScale", _texNoiseLayer1);
         _material.SetFloat("_NoiseScale2", _texNoiseLayer2);
+        Stopwatch sw = new Stopwatch();
+        sw.Start();
 
         RenderInstances();
+        sw.Stop();
+        print(sw.ElapsedMilliseconds);
     }
 
     private void OnDestroy()
@@ -244,6 +253,7 @@ public class GrassInstancerIndirect : MonoBehaviour
 
         _grassComputeShader.SetInt("numChunks", _numChunks);
         _grassComputeShader.SetInt("chunkSize", _chunkSize);
+        _grassComputeShader.SetFloat("halfChunkSize", _chunkSize / 2f);
         _grassComputeShader.SetInt("instancesPerChunk", instancesPerChunk);
         _grassComputeShader.SetFloat("depthBias", _depthBias);
 
@@ -294,9 +304,10 @@ public class GrassInstancerIndirect : MonoBehaviour
         // Fill buffer for rendering with chunk data
         _grassComputeShader.Dispatch(_kernelInitInstanceTransforms, Mathf.CeilToInt(_numChunks / _threadsChunkInit), 1, 1);
 
-        _visibleBuffer = new ComputeBuffer(_trueInstanceCount, sizeof(float) * 4 * 4, ComputeBufferType.Append);
+        _visibleBuffer = new ComputeBuffer(_trueInstanceCount, sizeof(uint) , ComputeBufferType.Append);
         _grassComputeShader.SetBuffer(_kernelChunkRender, "visibleList", _visibleBuffer);
         _material.SetBuffer("visibleList", _visibleBuffer);
+        _material.SetBuffer("trsBuffer", _trsBuffer);
 
         _grassComputeShader.SetBuffer(_kernelChunkRender, "trsBuffer", _trsBuffer);
         _grassComputeShader.SetBuffer(_kernelChunkRender, "chunkBuffer", _chunkBuffer);
