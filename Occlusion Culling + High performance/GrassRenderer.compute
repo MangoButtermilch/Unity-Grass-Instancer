@@ -1,0 +1,232 @@
+#pragma kernel ChunkRender
+#pragma kernel InitChunkInstanceCount
+#pragma kernel InitInstanceTransforms
+
+#define THREADS_CHUNK_RENDER 32
+#define THREADS_CHUNK_INIT 32
+
+#include "noise.hlsl"
+#include "quaternion-matrix-utils.hlsl"
+
+float4 viewFrustumPlanes[6];
+float3 camPos;
+float maxViewDistance;
+float depthBias;
+
+float4x4 vpMatrix;
+
+struct Chunk {
+    float3 position;
+    uint instanceStartIndex;
+    uint instanceCount;
+};
+
+float halfChunkSize;
+int numChunks;
+
+RWStructuredBuffer<Chunk> chunkBuffer;
+RWStructuredBuffer<float4x4> trsBuffer;
+AppendStructuredBuffer<uint> visibleList; 
+
+Texture2D<float4> _DepthTexture;
+SamplerState sampler_DepthTexture;
+
+
+float planeDistance(float4 plane, float3 p) {
+    return dot(plane.xyz, p) + plane.w;
+} 
+
+bool isInFrontOfPlane(float4 plane, float3 p) {
+    return planeDistance(plane, p) > 0;
+}
+
+bool isChunkInFrustum(float3 chunkPosition) {
+    for (uint j = 0; j < 6; j++) {
+        if (planeDistance(viewFrustumPlanes[j], chunkPosition) < -halfChunkSize) {//2nd param radius
+            return false;
+        }
+    }
+    return true;
+}
+
+bool isChunkOccluded(float3 chunkPosition) {
+    float4 projectedPos = mul(vpMatrix, float4(chunkPosition, 1.0));
+    float2 projectedUV = (projectedPos.xy / projectedPos.w + 1.0) * 0.5; 
+    
+    float sceneDepth = _DepthTexture.SampleLevel(sampler_DepthTexture, projectedUV, 0).r;
+    float chunkDepth = (projectedPos.z / projectedPos.w);
+
+    return chunkDepth < sceneDepth - depthBias;
+}
+
+[numthreads(THREADS_CHUNK_RENDER,1,1)]
+void ChunkRender (uint3 id : SV_DispatchThreadID)
+{
+    Chunk chunk = chunkBuffer[id.x];
+
+    float3 chunkPos = chunk.position;
+
+    //Order is important here for  performance
+    if (chunk.instanceCount == 0 ||
+        distance(camPos, chunkPos) > maxViewDistance ||
+        !isChunkInFrustum(chunkPos) ||
+        isChunkOccluded(chunkPos))
+    {
+        return;
+    }
+
+    uint start = chunk.instanceStartIndex;
+    uint end = start + chunk.instanceCount;
+
+    for (uint i = start; i < end; i++) {
+      visibleList.Append(i);
+    }
+}
+
+
+uint instancesPerChunk;
+int terrainHeightmapResolution;
+
+Texture2D<float4> Heightmap;
+SamplerState sampler_Heightmap;
+
+Texture2D<float4> Splatmap;
+SamplerState sampler_Splatmap;
+
+RWStructuredBuffer<int> instanceCounter;
+float3 terrainSize;
+float3 terrainPos;
+float3 scaleMin;
+float3 scaleMax;
+
+float scaleNoiseScale;
+float grassThreshhold;
+float minGrassHeight;
+
+float GetTerrainHeight(float2 uv)
+{
+    return Heightmap.SampleLevel(sampler_Heightmap, uv, 0).r * terrainSize.y * 2.;
+}
+
+float GetTerrainGrassValue(float2 uv)
+{
+    return Splatmap.SampleLevel(sampler_Splatmap, uv, 0).r;
+}
+
+float2 WorldToTerrainUV(float3 instancePosition)
+{
+    float2 relativePosition = (instancePosition.xz - terrainPos.xz) / terrainSize.x;
+    return float2(relativePosition.x, relativePosition.y);
+}
+
+float3 CalculateTerrainNormal(float2 uv)
+{
+    float texelSize = 1.0 / (float) terrainHeightmapResolution;
+
+    float heightL = GetTerrainHeight(uv + float2(-texelSize, 0.0));
+    float heightR = GetTerrainHeight(uv + float2(texelSize, 0.0));
+    float heightD = GetTerrainHeight(uv + float2(0.0, -texelSize));
+    float heightU = GetTerrainHeight(uv + float2(0.0, texelSize));
+
+    float3 tangentX = float3(2.0 * texelSize, heightR - heightL, 0.0);
+    float3 tangentZ = float3(0.0, heightU - heightD, 2.0 * texelSize);
+
+    return clamp(  //Clamped x axis to minimum 1. to avoid 0 vector to be returned
+        normalize(cross(tangentZ, tangentX)),
+        float3(0., 1., 0.),
+        float3(1., 1., 1.)  
+    );
+}
+
+float3 GenerateInstancePos(float3 chunkPos, uint instanceSeed) {
+    float randomX = Random11(instanceSeed);
+    float randomZ = Random11(instanceSeed * 15731u);
+    float3 instancePos = chunkPos + float3(randomX, 0, randomZ) * halfChunkSize;//Y Coord will be set after getting terrain height
+    return instancePos;
+}
+
+void GenerateChunkData(uint i, float3 chunkPos, out float3 instancePos, out uint instanceSeed, out float2 terrainUV, out float gradientNoise) {
+    instanceSeed = SimpleHash(i + chunkPos.x + chunkPos.z);
+    instancePos = GenerateInstancePos(chunkPos, instanceSeed);
+    terrainUV = WorldToTerrainUV(instancePos);  
+    Unity_GradientNoise_Deterministic_float(terrainUV, scaleNoiseScale, gradientNoise);
+}
+
+//This kernel only figures out how many instances we can have per chunk.
+[numthreads(THREADS_CHUNK_INIT, 1, 1)]
+void InitChunkInstanceCount(uint3 id : SV_DispatchThreadID)
+{
+    Chunk chunk = chunkBuffer[id.x];
+    chunk.instanceCount = 0;
+    chunk.instanceStartIndex = 0;
+
+    float3 chunkPos = chunk.position;
+    
+    uint instanceSeed = 0;
+    float3 instancePos;
+    float2 uv;
+    float gradientNoise;
+
+    for (uint i = 0; i < instancesPerChunk; i++)
+    {   
+        GenerateChunkData(i, chunkPos, instancePos, instanceSeed, uv, gradientNoise);
+        if (GetTerrainGrassValue(uv) < grassThreshhold || gradientNoise <= minGrassHeight) continue;
+        chunk.instanceCount++;
+    }
+
+    //will contain cvalue of instanceCounter[0] before atomic add
+    uint startIndex;
+    //atomic increase of global instance counter to not interfere with other threads when using the instanceCounter
+    InterlockedAdd(instanceCounter[0], chunk.instanceCount, startIndex);
+    //starting position inside trsBuffer array. Previously set via C# using a list and its count value.
+    chunk.instanceStartIndex = startIndex; 
+  
+    chunkBuffer[id.x] = chunk;
+}
+
+//This kernel creates TRS matrices for each chunk. Runs after InitChunkInstanceCount
+[numthreads(THREADS_CHUNK_INIT, 1, 1)]
+void InitInstanceTransforms(uint3 id : SV_DispatchThreadID)
+{
+    Chunk chunk = chunkBuffer[id.x];
+
+    float3 chunkPos = chunk.position;
+    
+    uint instanceSeed = 0;
+    
+    uint count = chunk.instanceCount;
+    uint startIndex = chunk.instanceStartIndex;
+    float gradientNoise = 0;
+    float3 instancePos;
+    float2 uv;
+
+    for (uint i = 0; i < count; i++)
+    {
+        GenerateChunkData(i, chunkPos, instancePos, instanceSeed, uv, gradientNoise);
+        //This condition has to match the one in InitChunkInstanceCount() in order to skip the exact same invalid instances.
+        if (GetTerrainGrassValue(uv) < grassThreshhold || gradientNoise <= minGrassHeight) continue;
+
+        instancePos.y = GetTerrainHeight(uv);
+
+        //using another random function to create even more "randomness"
+        float3 scale = lerp(scaleMin, scaleMax, gradientNoise);
+        float3 normal = CalculateTerrainNormal(uv);
+        instancePos.y += scale.y;
+
+        float4 rotationToNormal = FromToRotation(float3(0.0, 1.0, 0.0), normal);
+        float angle = Random11(instanceSeed + i *  15731u) * 360.0;
+        float4 yRotation = EulerToQuaternion(angle, 0, 0.);
+        float4 finalRotation = qmul(rotationToNormal, yRotation); 
+        
+        float4x4 instanceTransform = CreateTRSMatrix(instancePos, finalRotation, scale);
+
+        //set buffer at offset index
+        trsBuffer[startIndex + i] = instanceTransform; 
+    }
+
+    //Set chunk position to terrain height
+    float2 chunkUV = WorldToTerrainUV(chunkPos);
+    chunk.position.y = GetTerrainHeight(chunkUV);
+
+    chunkBuffer[id.x] = chunk;
+}
