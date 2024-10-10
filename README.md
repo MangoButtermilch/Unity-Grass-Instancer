@@ -14,7 +14,7 @@ Video showcase: https://www.youtube.com/watch?v=3SGxhRqzCm8
 - Frustum culled approach ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/Frustum%20Culling))
 - Frustum culled approach with chunking ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/Frustum%20Culling%20%2B%20Chunking))
 - Occlusion culled approach with frustum culling and chunking ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/Occlusion%20Culling))
-- High performance approach that extends all others ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/experimentation/Occlusion%20Culling%20%2B%20High%20performance))
+- High performance approach that extends all others ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/Occlusion%20Culling%20%2B%20High%20performance))
 
 
 
