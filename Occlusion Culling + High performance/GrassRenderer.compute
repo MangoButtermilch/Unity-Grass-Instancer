@@ -40,7 +40,7 @@ bool isInFrontOfPlane(float4 plane, float3 p) {
     return planeDistance(plane, p) > 0;
 }
 
-bool isChunkInFrustumOptimized(float3 chunkPosition) {
+bool isChunkInFrustum(float3 chunkPosition) {
     for (uint j = 0; j < 6; j++) {
         if (planeDistance(viewFrustumPlanes[j], chunkPosition) < -halfChunkSize) {//2nd param radius
             return false;
@@ -69,7 +69,7 @@ void ChunkRender (uint3 id : SV_DispatchThreadID)
     //Order is important here for  performance
     if (chunk.instanceCount == 0 ||
         distance(camPos, chunkPos) > maxViewDistance ||
-        !isChunkInFrustumOptimized(chunkPos) ||
+        !isChunkInFrustum(chunkPos) ||
         isChunkOccluded(chunkPos))
     {
         return;
@@ -101,6 +101,7 @@ float3 scaleMax;
 
 float scaleNoiseScale;
 float grassThreshhold;
+float minGrassHeight;
 
 float GetTerrainHeight(float2 uv)
 {
@@ -140,13 +141,18 @@ float3 CalculateTerrainNormal(float2 uv)
 float3 GenerateInstancePos(float3 chunkPos, uint instanceSeed) {
     float randomX = Random11(instanceSeed);
     float randomZ = Random11(instanceSeed * 15731u);
-
-    float3 instancePos = chunkPos + 
-          float3(randomX, 0, randomZ) * halfChunkSize;//Y Coord will be set after getting terrain height
-
+    float3 instancePos = chunkPos + float3(randomX, 0, randomZ) * halfChunkSize;//Y Coord will be set after getting terrain height
     return instancePos;
 }
 
+void GenerateChunkData(uint i, float3 chunkPos, out float3 instancePos, out uint instanceSeed, out float2 terrainUV, out float gradientNoise) {
+    instanceSeed = SimpleHash(i + chunkPos.x + chunkPos.z);
+    instancePos = GenerateInstancePos(chunkPos, instanceSeed);
+    terrainUV = WorldToTerrainUV(instancePos);  
+    Unity_GradientNoise_Deterministic_float(terrainUV, scaleNoiseScale, gradientNoise);
+}
+
+//This kernel only figures out how many instances we can have per chunk.
 [numthreads(THREADS_CHUNK_INIT, 1, 1)]
 void InitChunkInstanceCount(uint3 id : SV_DispatchThreadID)
 {
@@ -157,20 +163,20 @@ void InitChunkInstanceCount(uint3 id : SV_DispatchThreadID)
     float3 chunkPos = chunk.position;
     
     uint instanceSeed = 0;
+    float3 instancePos;
+    float2 uv;
+    float gradientNoise;
+
     for (uint i = 0; i < instancesPerChunk; i++)
     {   
-        //important to increase the instance seed BEFORE "continue" is used
-        instanceSeed = SimpleHash(i);
-        float3 instancePos = GenerateInstancePos(chunkPos, instanceSeed);
-        float2 uv = WorldToTerrainUV(instancePos);  
-        if (GetTerrainGrassValue(uv) < grassThreshhold) continue;
-
+        GenerateChunkData(i, chunkPos, instancePos, instanceSeed, uv, gradientNoise);
+        if (GetTerrainGrassValue(uv) < grassThreshhold || gradientNoise <= minGrassHeight) continue;
         chunk.instanceCount++;
     }
 
     //will contain cvalue of instanceCounter[0] before atomic add
     uint startIndex;
-    //atomic increase of global instance counter to not interfere with other threads whe nusing the instanceCounter
+    //atomic increase of global instance counter to not interfere with other threads when using the instanceCounter
     InterlockedAdd(instanceCounter[0], chunk.instanceCount, startIndex);
     //starting position inside trsBuffer array. Previously set via C# using a list and its count value.
     chunk.instanceStartIndex = startIndex; 
@@ -178,7 +184,7 @@ void InitChunkInstanceCount(uint3 id : SV_DispatchThreadID)
     chunkBuffer[id.x] = chunk;
 }
 
-
+//This kernel creates TRS matrices for each chunk. Runs after InitChunkInstanceCount
 [numthreads(THREADS_CHUNK_INIT, 1, 1)]
 void InitInstanceTransforms(uint3 id : SV_DispatchThreadID)
 {
@@ -190,27 +196,22 @@ void InitInstanceTransforms(uint3 id : SV_DispatchThreadID)
     
     uint count = chunk.instanceCount;
     uint startIndex = chunk.instanceStartIndex;
-    
+    float gradientNoise = 0;
+    float3 instancePos;
+    float2 uv;
+
     for (uint i = 0; i < count; i++)
     {
-        //These 4 lines have to match exactly the ones in InitChunkInstanceCount in order to create the same instance positions and skip wrong ones.
-        instanceSeed = SimpleHash(i);
-        float3 instancePos = GenerateInstancePos(chunkPos, instanceSeed);
-        float2 uv = WorldToTerrainUV(instancePos);  
-        if (GetTerrainGrassValue(uv) < grassThreshhold) continue;
+        GenerateChunkData(i, chunkPos, instancePos, instanceSeed, uv, gradientNoise);
+        //This condition has to match the one in InitChunkInstanceCount() in order to skip the exact same invalid instances.
+        if (GetTerrainGrassValue(uv) < grassThreshhold || gradientNoise <= minGrassHeight) continue;
 
         instancePos.y = GetTerrainHeight(uv);
 
-        float gradientNoise = 0;
-        Unity_GradientNoise_Deterministic_float(uv, (float) instanceSeed * scaleNoiseScale, gradientNoise);
-     
-
         //using another random function to create even more "randomness"
         float3 scale = lerp(scaleMin, scaleMax, gradientNoise);
-
         float3 normal = CalculateTerrainNormal(uv);
-        
-        instancePos.y += scale.y - normal.z / 2.;
+        instancePos.y += scale.y;
 
         float4 rotationToNormal = FromToRotation(float3(0.0, 1.0, 0.0), normal);
         float angle = Random11(instanceSeed + i *  15731u) * 360.0;

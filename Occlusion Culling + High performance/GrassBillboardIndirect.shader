@@ -23,7 +23,6 @@ Shader "Unlit/GrassBlillboardIndirect"
         _ShadowBrightness ("Shadow brightness", float) = 0.25
         _MaxViewDistance ("Max view distnace", float) = 1024
         _DistanceTilingOffset ("Distance Tiling Offset", float) = .2
-        [Toggle] _RecieveShadow("Recieve shadow", float) = 0
 
     }
     SubShader
@@ -103,7 +102,6 @@ Shader "Unlit/GrassBlillboardIndirect"
             float _WindNoiseScale;
             float _MinBrightness;
             float _ShadowBrightness;
-            float _RecieveShadow;
             float _Cutoff;
 
             sampler2D _GrassTexture;
@@ -152,12 +150,18 @@ Shader "Unlit/GrassBlillboardIndirect"
                 return noiseLayer1;
             }
 
+            float3 GetScaleFromMatrix(float4x4 mat) {
+                return float3(length(mat._m00_m10_m20), length(mat._m01_m11_m21), length(mat._m02_m12_m22));
+            }
+            
             VertexOutput vert (VertexInput v, uint instanceID : SV_InstanceID)
             {
                 VertexOutput o;
 
                 uint index = visibleList[instanceID];
                 float4x4 mat = trsBuffer[index];
+
+                float3 scale = 1;
                 //applying transformation matrix
                 float3 positionWorldSpace = mul(mat, float4(v.vertex.xyz, 1));
                 o.staticWorldPos = positionWorldSpace;
@@ -173,7 +177,8 @@ Shader "Unlit/GrassBlillboardIndirect"
 
                 //to keep bottom part of mesh at its position
                 o.uv = v.uv;
-                float smoothDeformation = smoothstep(_MeshDeformationLimitLow, _MeshDeformationLimitTop, o.uv.y);
+                //the taller the grass the more it should sway 
+                float smoothDeformation = smoothstep(_MeshDeformationLimitLow, _MeshDeformationLimitTop, o.uv.y * scale.y + .2);
                 float distortion = smoothDeformation * noise;
 
                 //apply distortion
@@ -191,6 +196,7 @@ Shader "Unlit/GrassBlillboardIndirect"
             {
                 float4 texCol = 0;
 
+                //Tiling textures based on distance - can be completley removed if you want
                 float distToCam = distance(i.staticWorldPos, _WorldSpaceCameraPos);
                 float distRatio = saturate(distToCam / _MaxViewDistance);
 
@@ -230,22 +236,16 @@ Shader "Unlit/GrassBlillboardIndirect"
 
                 Light mainLight = GetMainLight(i.shadowCoord); 
                 float diffuseLight = clamp(dot(mainLight.direction, i.normal), _MinBrightness, 1.0);
-               
-                if (_RecieveShadow > 0) {
-                    
-                    float distanceAtten = mainLight.distanceAttenuation;
-                    float shadowAtten = saturate(mainLight.shadowAttenuation + _ShadowBrightness);
-                    float4 lightColor = float4(mainLight.color, 1) * (distanceAtten * shadowAtten);
+                
+                float distanceAtten = mainLight.distanceAttenuation;
+                float shadowAtten = saturate(mainLight.shadowAttenuation + _ShadowBrightness);
+                float4 lightColor = float4(mainLight.color, 1) * (distanceAtten * shadowAtten);
 
-                    lightColor = saturate(lightColor);
-                    grassColor *= lightColor * diffuseLight;
-                    Applyfog(grassColor, i.positionWorldSpace);
-                    return grassColor;
-                }
-
-                grassColor = saturate(grassColor * diffuseLight);
+                lightColor = saturate(lightColor);
+                grassColor *= lightColor * diffuseLight;
                 Applyfog(grassColor, i.positionWorldSpace);
-                return grassColor;               
+                return grassColor;
+
             }
             ENDHLSL
         }
@@ -298,7 +298,6 @@ Shader "Unlit/GrassBlillboardIndirect"
             float _WindNoiseScale;
             float _MinBrightness;
             float _ShadowBrightness;
-            float _RecieveShadow;
             float _Cutoff;
 
             sampler2D _GrassTexture;
