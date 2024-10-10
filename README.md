@@ -8,7 +8,7 @@
 Video showcase: https://www.youtube.com/watch?v=3SGxhRqzCm8
 
 
-## Project contains 4 approaches
+## Project contains 5 approaches
 (Performance increases every step)
 - (old) Plain instanced rendering using `DrawMeshInstanced` and `DrawMeshInstancedIndirect` without any optimizations ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/No%20Optimizations))
 - Frustum culled approach ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/Frustum%20Culling))
@@ -23,6 +23,7 @@ Video showcase: https://www.youtube.com/watch?v=3SGxhRqzCm8
 - A terrain
 - SRP Batcher needs to be disabled
 - Enable GPU instancing on the material
+
 ![Material GPU instancing setting](Screenshots/Material.png?raw=true "Material")
 
 ## Setup
