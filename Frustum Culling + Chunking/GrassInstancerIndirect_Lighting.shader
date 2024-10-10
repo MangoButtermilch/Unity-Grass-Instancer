@@ -78,6 +78,7 @@ Shader "Unlit/GrassBladeIndirect"
                 float2 uv : TEXCOORD0;
                 float3 normal : NORMAL;
                 float4 shadowCoord: TEXCOORD1;
+                float3 positionWorldSpace :TEXCOORD3;
             };
 
             StructuredBuffer<float4x4> visibleList;
@@ -92,7 +93,23 @@ Shader "Unlit/GrassBladeIndirect"
             float _ShadowBrightness;
             float _RecieveShadow;
             float _Cutoff;
-
+            
+            //https://discussions.unity.com/t/how-to-compute-fog-in-hlsl-on-urp/943637/4
+            void Applyfog(inout float4 color, float3 positionWS)
+            {
+                float4 inColor = color;
+              
+                #if defined(FOG_LINEAR) || defined(FOG_EXP) || defined(FOG_EXP2)
+                float viewZ = -TransformWorldToView(positionWS).z;
+                float nearZ0ToFarZ = max(viewZ - _ProjectionParams.y, 0);
+                float density = 1.0f - ComputeFogIntensity(ComputeFogFactorZ0ToFar(nearZ0ToFarZ));
+            
+                color = lerp(color, unity_FogColor,  density);
+            
+                #else
+                color = color;
+                #endif
+            }
 
             VertexOutput vert (VertexInput v, uint instanceID : SV_InstanceID)
             {
@@ -126,6 +143,7 @@ Shader "Unlit/GrassBladeIndirect"
                 VertexNormalInputs normal = GetVertexNormalInputs(v.vertex);
                 o.normal = normal.normalWS; 
 
+                o.positionWorldSpace = positionWorldSpace;
                 return o;
             }
 
@@ -146,10 +164,14 @@ Shader "Unlit/GrassBladeIndirect"
                     float4 lightColor = float4(mainLight.color, 1) * (distanceAtten * shadowAtten);
 
                     lightColor = saturate(lightColor);
-                    return saturate(grassColor * lightColor * lightStrength);
+                    float4 resultColor = saturate(grassColor * lightColor * lightStrength);
+                    Applyfog(resultColor, i.positionWorldSpace);
+                    return resultColor;
                 }
 
                 float4 finalColor = saturate(grassColor * lightStrength);
+
+                Applyfog(finalColor, i.positionWorldSpace);
 
                 return finalColor;               
             }
