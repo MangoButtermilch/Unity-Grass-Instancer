@@ -1,7 +1,7 @@
 # High performance grass rendering
 ## This approach extends and improves all previous techniques
 
-## Showcase: https://www.youtube.com/watch?v=S8xcZXEwG3U&t=14s
+## Showcase: https://www.youtube.com/watch?v=15BYZ1IBxzM
 ![Alt text](../Screenshots/Highperformance_preview.png?raw=true "")
 
 ### Showcase details:
@@ -9,11 +9,13 @@
 - Max. amount of instances possible: `2²⁵ = 33,554,432`
 - True amount of instances created:  `18,473,153`
 - Amount of chunks: `262,144`
+- Chunk size: `8m x 8m`
 - Max instances per chunk: `128`
 - Time for initializing all chunks and instances: `~ 13ms`
 - Bytes per chunk: `20`
 - Vertices per instance: `8`
-- Average FPS: `50 - 60`
+- Shadow casting: `enabled`
+- Average minimum FPS: `50 - 60`
 - GPU: `GTX 1070`
 
 ## About this approach
@@ -34,6 +36,7 @@
 - `Grass compute shader` - Assign the `GrassRenderer.compute` shader to this
 - `Tex Noise Layer 1 and 2` - Values for creating some sort of noise for the `billboard shader`
 - `Chunk size` - The size in meters of a chunk. Works best with powers of 2.
+- `LOD Level 1 and 2` - Values used to reduce the amount of instances in a chunk the further away it is. Level 1 starts at 2/3 of `Max view distance` and Level 2 at 3/3 
 - `Threads chunk render` - The amount of thread groups when rendering. This works best with powers of 2.
 - `Threads chunk init` - The amount of thread groups for initializing the chunks. This also works best with powers of 2.
 - `Depth bias` - value that will be subtracted from the sampled depth texture. Used to fine tune the culling of occluded chunks.
