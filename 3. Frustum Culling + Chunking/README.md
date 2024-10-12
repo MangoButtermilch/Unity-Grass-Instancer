@@ -6,7 +6,7 @@
 
 
 ## Rough explanation
-- The approach is really similliar to the plain frustum culling approach: [Read about frustum culling approach](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/Frustum%20Culling)
+- The approach is really similliar to the plain frustum culling approach: [Read about frustum culling approach](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/2.%20Frustum%20Culling)
 - The main differences are:
     - world is divided in to a grid of chunks
     - each chunk holds a `start` index and `counter` variable

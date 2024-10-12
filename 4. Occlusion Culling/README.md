@@ -6,7 +6,7 @@ Showcase: https://www.youtube.com/watch?v=3SGxhRqzCm8
 
 
 ## Rough explanation
-- The approach extends my frustum culling with chunks approach: ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/Frustum%20Culling%20%2B%20Chunking))
+- The approach extends my frustum culling with chunks approach: ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/3.%20Frustum%20Culling%20%2B%20Chunking))
 - The compute shader now does an additional check with the scene depth texture to see if a chunk is occluded
 - This works by:
     - converting chunk position to view space

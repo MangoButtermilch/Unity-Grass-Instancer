@@ -10,11 +10,11 @@ Video showcase: https://www.youtube.com/watch?v=3SGxhRqzCm8
 
 ## Project contains 5 approaches
 (Performance increases every step)
-- (old) Plain instanced rendering using `DrawMeshInstanced` and `DrawMeshInstancedIndirect` without any optimizations ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/No%20Optimizations))
-- Frustum culled approach ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/Frustum%20Culling))
-- Frustum culled approach with chunking ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/Frustum%20Culling%20%2B%20Chunking))
-- Occlusion culled approach with frustum culling and chunking ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/Occlusion%20Culling))
-- High performance approach that extends all others ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/Occlusion%20Culling%20%2B%20High%20performance))
+- (old) Plain instanced rendering using `DrawMeshInstanced` and `DrawMeshInstancedIndirect` without any optimizations ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/1.%20No%20Optimizations))
+- Frustum culled approach ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/2.%20Frustum%20Culling))
+- Frustum culled approach with chunking ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/3.%20Frustum%20Culling%20%2B%20Chunking))
+- Occlusion culled approach with frustum culling and chunking ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/4.%20Occlusion%20Culling))
+- High performance approach that extends all others ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/5.%20Occlusion%20Culling%20%2B%20High%20performance))
 
 
 
@@ -66,13 +66,12 @@ Your mesh could also be not placed or rotated correctly:
 ### Why are all instances invisible or black?
 This may happend, because you're placing the objects with the material by hand. This does not work because the shader needs and instance ID which is only provided by calling `DrawMeshInstanced` and `DrawMeshinstancedIndirect` for rendering. Also the `_trsBuffer` which contains all the data for the instances is only initialized at start and it's needed for rendering. 
 
-Another reason could be that the shader is not compatible with your render pipeline. I currently only provide a shader for URP and a [shadergraph for HDRP](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/No%20Optimizations). The HDRP shadergraph only works with `Unity 2021.2` or higher since the instance ID node does not exist in earlier versions. 
+Another reason could be that the shader is not compatible with your render pipeline. I currently only provide a shader for URP and a [shadergraph for HDRP](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/1.%20No%20Optimizations). The HDRP shadergraph only works with `Unity 2021.2` or higher since the instance ID node does not exist in earlier versions. 
 
 
 ### If you have more issues, please open an issue here on Github.
 
 ## What's next/TODOs
-- Initializing the grass instances completley on the GPU to avoid using Raycasts. [see progress here](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/experimentation/Occlusion%20Culling)
 - New shader for HDRP
 - New shader for default render pipeline
 - Improve the readme files 
