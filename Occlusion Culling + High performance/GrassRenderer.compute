@@ -23,6 +23,8 @@ struct Chunk {
 
 float halfChunkSize;
 int numChunks;
+int lodLevel1;
+int lodLevel2;
 
 RWStructuredBuffer<Chunk> chunkBuffer;
 RWStructuredBuffer<float4x4> trsBuffer;
@@ -48,35 +50,70 @@ bool isChunkInFrustum(float3 chunkPosition) {
     }
     return true;
 }
+bool isChunkOccluded(float3 chunkPosition, float distToCamera) {
+    // Only check above corners
+    float3 chunkCorners[4];
+    chunkCorners[0] = chunkPosition + float3(-halfChunkSize, halfChunkSize, -halfChunkSize);
+    chunkCorners[1] = chunkPosition + float3(halfChunkSize, halfChunkSize, -halfChunkSize);
+    chunkCorners[2] = chunkPosition + float3(-halfChunkSize, halfChunkSize, halfChunkSize);
+    chunkCorners[3] = chunkPosition + float3(halfChunkSize, halfChunkSize, halfChunkSize);
 
-bool isChunkOccluded(float3 chunkPosition) {
-    float4 projectedPos = mul(vpMatrix, float4(chunkPosition, 1.0));
-    float2 projectedUV = (projectedPos.xy / projectedPos.w + 1.0) * 0.5; 
+    float adaptiveDepthBias = depthBias * (1.0 + distToCamera / maxViewDistance);
+
+    for (int i = 0; i < 4; i++) {
+        float4 projectedPos = mul(vpMatrix, float4(chunkCorners[i], 1.0));
+        float2 projectedUV = (projectedPos.xy / projectedPos.w + 1.0) * 0.5;
+
+        float sceneDepth = _DepthTexture.SampleLevel(sampler_DepthTexture, projectedUV, 0).r;
+        float chunkDepth = (projectedPos.z / projectedPos.w);
+
+        if (chunkDepth > sceneDepth - adaptiveDepthBias) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+//Returns reduced instance count the further away from the camera 
+float getChunkLODCount(uint chunkInstanceCount, float distanceToCamera) {
+    float distanceRatio = distanceToCamera / maxViewDistance;
     
-    float sceneDepth = _DepthTexture.SampleLevel(sampler_DepthTexture, projectedUV, 0).r;
-    float chunkDepth = (projectedPos.z / projectedPos.w);
-
-    return chunkDepth < sceneDepth - depthBias;
+    if (distanceRatio < 0.33) {
+      return chunkInstanceCount;
+    } else if (distanceRatio < 0.66) {
+      return chunkInstanceCount / lodLevel1;
+    } else {
+      return chunkInstanceCount / lodLevel2;
+    }
 }
 
 [numthreads(THREADS_CHUNK_RENDER,1,1)]
 void ChunkRender (uint3 id : SV_DispatchThreadID)
 {
     Chunk chunk = chunkBuffer[id.x];
+    if (chunk.instanceCount == 0) return;
+
+    uint count = chunk.instanceCount;
 
     float3 chunkPos = chunk.position;
+    float distToCamera = distance(camPos, chunkPos);
 
-    //Order is important here for  performance
-    if (chunk.instanceCount == 0 ||
-        distance(camPos, chunkPos) > maxViewDistance ||
-        !isChunkInFrustum(chunkPos) ||
-        isChunkOccluded(chunkPos))
+    bool isClose = distToCamera < halfChunkSize;
+
+    //Order is important here for performance
+    if (!isClose && (
+            distToCamera > maxViewDistance ||
+            !isChunkInFrustum(chunkPos) ||
+            isChunkOccluded(chunkPos, distToCamera))
+        )
     {
         return;
     }
 
+    count = getChunkLODCount(count, distToCamera);
     uint start = chunk.instanceStartIndex;
-    uint end = start + chunk.instanceCount;
+    uint end = start + count;
 
     for (uint i = start; i < end; i++) {
       visibleList.Append(i);

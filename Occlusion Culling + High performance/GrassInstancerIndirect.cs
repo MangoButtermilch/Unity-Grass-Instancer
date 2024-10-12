@@ -56,6 +56,8 @@ public class GrassInstancerIndirect : MonoBehaviour
     private int _numChunks;
     [SerializeField] private uint _threadsChunkRender = 32;
     [SerializeField] private int _threadsChunkInit = 32;
+    [SerializeField][Range(2, 8)] private int _lodLevel1 = 4;
+    [SerializeField][Range(2, 16)] private int _lodLevel2 = 8;
     [Header("Occlusion")]
     private Texture _cameraDepthTexture;
     [SerializeField][Range(0.0001f, 0.1f)] private float _depthBias = 0.0001f;
@@ -237,6 +239,8 @@ public class GrassInstancerIndirect : MonoBehaviour
         _grassComputeShader.SetFloat("minGrassHeight", _minGrassHeight);
         _grassComputeShader.SetFloat("halfChunkSize", _chunkSize / 2f);
 
+        _grassComputeShader.SetInt("lodLevel1", _lodLevel1);
+        _grassComputeShader.SetInt("lodLevel2", _lodLevel2);
         _grassComputeShader.SetInt("numChunks", _numChunks);
         _grassComputeShader.SetInt("chunkSize", _chunkSize);
         _grassComputeShader.SetInt("instancesPerChunk", instancesPerChunk);
