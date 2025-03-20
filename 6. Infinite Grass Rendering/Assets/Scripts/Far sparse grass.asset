@@ -1,0 +1,55 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 42f9ec8b654356042a34546a38e947bb, type: 3}
+  m_Name: Far sparse grass
+  m_EditorClassIdentifier: 
+  NumInstancesPerChunk: 262144
+  GrassChunkSize: 512
+  GrassSubChunkSize: 16
+  TerrainLayerMask:
+    serializedVersion: 2
+    m_Bits: 256
+  ScaleMin: {x: 0.15, y: 0, z: 0.15}
+  ScaleMax: {x: 1, y: 1, z: 1}
+  MinGrassHeight: 0.15
+  ScaleNoiseScale: 256
+  GrassThreshhold: 0.6
+  GrassRendererLayerMask:
+    serializedVersion: 2
+    m_Bits: 64
+  GrassComputeShader: {fileID: 7200000, guid: e88058db14ff9884c87ebb61be359716, type: 3}
+  MeshLOD0: {fileID: -1633821710574564935, guid: a31226970c95e8a47af61e22904ad0a9, type: 3}
+  MeshLOD1: {fileID: -179393741545503174, guid: a31226970c95e8a47af61e22904ad0a9, type: 3}
+  LodThreshhold1: 0.25
+  MeshLOD2: {fileID: 736115405485880582, guid: a31226970c95e8a47af61e22904ad0a9, type: 3}
+  LodThreshhold2: 0.35
+  MaxViewDistance: 1000
+  DepthBias: 0.0001
+  FadeStart: 1
+  FadeEnd: 1
+  Material: {fileID: 2100000, guid: d895687ad9aaa344baed91269e0ab0f9, type: 2}
+  BillboardTexture: {fileID: 18700000, guid: 2aa3523da95047e468d0a256188701b7, type: 3}
+  BillboardTextureCount: 6
+  BillboardTilingAndOffset: {x: 1, y: 1, z: 0, w: 0}
+  TextureNoiseLayers: {x: 0.01, y: 3.4099998}
+  AlphaCutoff: 0.5
+  Tint: {r: 1, g: 1, b: 1, a: 1}
+  AoColor: {r: 0.68021756, g: 1, b: 0.6084906, a: 1}
+  MinBrightness: 2
+  ShadowBrighntess: 0.2
+  FlatShading: 1
+  CastShadows: 1
+  MeshDeformationLimitLow: 0
+  MeshDeformationLimitTop: 3.37
+  WindNoiseScale: 0.78
+  WindStrength: 10
+  WindSpeed: {x: 2, y: 6}

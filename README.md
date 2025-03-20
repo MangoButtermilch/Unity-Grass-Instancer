@@ -1,20 +1,22 @@
 # Unity Grass Instancer
 ## Contains C# scripts and shaders for GPU instanced grass (or any other mesh)
 ### Made with Unity 2020.3.4f1 and HDRP 10.4.0
-### Also tested with Unity 2022.3.40f1 and URP 14.0.11
+### Also tested with Unity 2022.3.40f1 and URP 14.0.11 | Unity 6 and URP 17.0.3
 
 ![Alt text](Screenshots/showcase.gif?raw=true "Showcase")
 
-Video showcase: https://www.youtube.com/watch?v=3SGxhRqzCm8
+## Video showcase: https://www.youtube.com/watch?v=4A0QP5x0MOE
 
 
-## Project contains 5 approaches
+## Project contains 6 approaches
 (Performance increases every step)
 - (old) Plain instanced rendering using `DrawMeshInstanced` and `DrawMeshInstancedIndirect` without any optimizations ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/1.%20No%20Optimizations))
 - Frustum culled approach ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/2.%20Frustum%20Culling))
 - Frustum culled approach with chunking ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/3.%20Frustum%20Culling%20%2B%20Chunking))
 - Occlusion culled approach with frustum culling and chunking ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/4.%20Occlusion%20Culling))
 - High performance approach that extends all others ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/5.%20Occlusion%20Culling%20%2B%20High%20performance))
+
+- Infinite grass rendering  ([click here to read more](https://github.com/MangoButtermilch/Unity-Grass-Instancer/tree/main/5.%20Occlusion%20Culling%20%2B%20High%20performance))
 
 
 
