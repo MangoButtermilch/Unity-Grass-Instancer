@@ -20,11 +20,8 @@ struct VertexOutput
     float2 uv : TEXCOORD0;
     float3 normal : NORMAL;
     float3 dynamicWorldPos: TEXCOORD3;//world position moved by wind and other things
-    float3 staticWorldPos: TEXCOORD4;//static world position for sampling a texture
-    float3 scale: TEXCOORD5;
     float distToCam: TEXCOORD6;
     float textureNoise: TEXCOORD7;
-    uint lodIndex : TEXCOORD8;
 };
 
 //individuall buffers per material
@@ -93,7 +90,7 @@ void Applyfog(inout float4 color, float3 positionWS)
 #endif
 }
 
-void ApplyTexColor(float3 worldPos, float2 uv, float textureNoise, out float4 texCol) {
+void ApplyTexColor(float2 uv, float textureNoise, out float4 texCol) {
     uv = uv * agr_billboardTextures_ST.xy + agr_billboardTextures_ST.zw;
     float index = floor(textureNoise * (agr_billboardTextureCount));
     texCol = SAMPLE_TEXTURE2D_ARRAY(agr_billboardTextures, sampler_agr_billboardTextures, uv, index);
@@ -106,7 +103,6 @@ VertexOutput vert (VertexInput input, uint instanceID : SV_InstanceID)
 
     uint index = instanceData.trsIndex; 
     uint lodIndex = instanceData.lodIndex;
-    output.lodIndex = lodIndex;
 
 #ifdef SHADOW_CASTER_PASS
     if (lodIndex > 0)
@@ -127,7 +123,6 @@ VertexOutput vert (VertexInput input, uint instanceID : SV_InstanceID)
 
     //applying transformation matrix
     float3 staticWorldPos = mul(mat, float4(vertex.xyz, 1));
-    output.staticWorldPos = staticWorldPos;
 
     float3 camPos = _WorldSpaceCameraPos;
     output.distToCam = distance(staticWorldPos, camPos);
@@ -144,7 +139,6 @@ VertexOutput vert (VertexInput input, uint instanceID : SV_InstanceID)
         noise = (noise - .5) * 2.; 
         scale = GetScaleFromMatrix(mat);
     }
-    output.scale = scale;
 
 
     //to keep bottom part of mesh at its position
@@ -159,12 +153,12 @@ VertexOutput vert (VertexInput input, uint instanceID : SV_InstanceID)
     //distortion based on view
     float3 viewDisplacement = mul(UNITY_MATRIX_VP, input.normal) * dynamicWorldPos.z;
     dynamicWorldPos.xz += ((1. - viewDisplacement) * 0.0001) * output.uv.y;
-    output.dynamicWorldPos = dynamicWorldPos;
+    output.dynamicWorldPos = dynamicWorldPos; 
 
     output.vertex = mul(UNITY_MATRIX_VP, float4(dynamicWorldPos, 1));
 
     //generating texture noise in vertex stage to improve performance
-    output.textureNoise = GetGrassNoise(output.staticWorldPos);
+    output.textureNoise = GetGrassNoise(staticWorldPos);
 
     output.normal = (agr_flatShading < 0) ? input.normal : 0;
     return output;
@@ -179,7 +173,7 @@ float4 frag (VertexOutput input) : SV_Target
     float4 texCol = 0;
     float noise = input.textureNoise;
 
-    ApplyTexColor(input.staticWorldPos, input.uv, noise, texCol);
+    ApplyTexColor(input.uv, noise, texCol);
 
     texCol.a *= (1. - fade);
     if (texCol.a < agr_alphaCutoff) {

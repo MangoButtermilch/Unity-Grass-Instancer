@@ -182,7 +182,12 @@ float3 GenerateInstancePos(float3 chunkPos, uint instanceSeed) {
 }
 
 void GenerateChunkData(uint i, float3 chunkPos, out float3 instancePos, out uint instanceSeed, out float2 terrainUV, out float gradientNoise) {
-    instanceSeed = SimpleHash(i + chunkPos.x + chunkPos.z) ;
+    uint cx = asuint(chunkPos.x); //example 8.0f to 0x41000000
+    uint cz = asuint(chunkPos.z);
+    
+    uint chunkHash = SimpleHash(cx * 2246822519u ^ cz * 3266489917u);
+    instanceSeed = SimpleHash(chunkHash ^ (i * 2654435761u));
+
     instancePos = GenerateInstancePos(chunkPos, instanceSeed);
     terrainUV = WorldToTerrainUV(instancePos);  
     Unity_GradientNoise_Deterministic_float(terrainUV, scaleNoiseScale, gradientNoise);
@@ -236,7 +241,7 @@ void InitInstanceTransforms(uint3 id : SV_DispatchThreadID)
     float3 instancePos;
     float2 uv;
 
-    for (uint i = 0; i < count; i++)
+    for (uint i = 0; i < instancesPerChunk; i++)
     {
         GenerateChunkData(i, chunkPos, instancePos, instanceSeed, uv, gradientNoise);
         //This condition has to match the one in InitChunkInstanceCount() in order to skip the exact same invalid instances.
