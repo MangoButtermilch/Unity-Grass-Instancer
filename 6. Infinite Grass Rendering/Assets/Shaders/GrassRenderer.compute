@@ -241,7 +241,7 @@ void InitInstanceTransforms(uint3 id : SV_DispatchThreadID)
     float3 instancePos;
     float2 uv;
 
-    for (uint i = 0; i < count; i++)
+    for (uint i = 0; i < instancesPerChunk; i++)
     {
         GenerateChunkData(i, chunkPos, instancePos, instanceSeed, uv, gradientNoise);
         //This condition has to match the one in InitChunkInstanceCount() in order to skip the exact same invalid instances.
