@@ -47,10 +47,6 @@ This can happend if the `depth bias` value is not fine tuned. You can play aroun
 
 Another issue could be the `camera depth texture` if you have both scene and game view open or switch between these two during testing. Somehow the creation of this texture can be messed up.
 
-### Grass placement seems repetitive
-
-This gets noticable at a small `sub chunk size` at like `1` to `8`. This has to do with how the noise functions are seeded inside the compute shader threads and is an issue I could not find a fix for. In my showcases I've been using `16`.
-
 ### [More issues can be found here.](https://github.com/MangoButtermilch/Unity-Grass-Instancer/blob/main/README.md#faq)
 
 
