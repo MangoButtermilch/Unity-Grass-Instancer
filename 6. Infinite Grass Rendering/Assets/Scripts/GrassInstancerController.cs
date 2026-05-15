@@ -14,6 +14,8 @@ namespace Acetix.Grass
         [SerializeField]
         [Tooltip("Will show you the sub chunks.")]
         private bool _drawSubChunks;
+        [Tooltip("(Debug only) Fetches depth texture in scene view so it can also render the instances.")]
+        [SerializeField] private bool _fetchDepthInScene = true;
         [Header("Settings")]
         [SerializeField] public GrassInstancerSettings _settings;
 
@@ -49,6 +51,10 @@ namespace Acetix.Grass
         /// </summary>
         void OnRenderObject()
         {
+            if (!_fetchDepthInScene && Camera.current != null && Camera.current.cameraType == CameraType.SceneView)
+            {
+                return;
+            }
             _cameraDepthTexture = Shader.GetGlobalTexture("_CameraDepthTexture");
             //Depth tex not correctly initialized yet. 
             if (_cameraDepthTexture.width == 4 && _cameraDepthTexture.height == 4)

@@ -45,7 +45,7 @@ This can happen if the instancer is not positioned correctly. It should be place
 
 This can happend if the `depth bias` value is not fine tuned. You can play around with it in play mode to find a suiting value.
 
-Another issue could be the `camera depth texture` if you have both scene and game view open or switch between these two during testing. Somehow the creation of this texture can be messed up.
+Another issue could be the `camera depth texture` if you have both scene and game view open or switch between these two during testing (see property `_fetchDepthInScene`);
 
 ### [More issues can be found here.](https://github.com/MangoButtermilch/Unity-Grass-Instancer/blob/main/README.md#faq)
 
